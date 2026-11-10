@@ -1,25 +1,10 @@
 ---
 name: show-me
-description: "Use for visual explanations, relationship diagrams, data charts, product-design sketches, and interactive demos. Choose code sketches, native Mermaid/charts, or HTML."
+description: Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts.
 disable-model-invocation: true
-license: MIT
 ---
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.
-
-### Choose a view
-
-Honor a requested tool or deliverable format. When editing an existing spec, keep its tool and format.
-
-| Need                                                                                  | Default                  |
-| ------------------------------------------------------------------------------------- | ------------------------ |
-| Logic, calls, components, directories, or code changes                                | Code sketch or diff      |
-| Exact values, field mappings, or item-by-item comparison                              | Markdown table           |
-| Ordinary flows, states, sequences, classes, ER, mindmaps, timelines, or Git histories | Native Mermaid rendering |
-| One quick single-series bar/line chart, index-based point plot, sparkline, or heatmap | Host-native charts       |
-| Clicking, input, switching views, or other actual interaction                         | HTML                     |
-
-Use native charts for a quick standalone plot.
 
 - Show logic or an algorithm as pseudocode:
 
@@ -59,7 +44,7 @@ src/
 └── transport/      # sends API requests
 ```
 
-- For ordinary component interaction, control flow, or data flow, use the native Mermaid route:
+- Show component interaction, control flow, or data flow with Mermaid:
 
 ```mermaid
 sequenceDiagram
@@ -125,12 +110,16 @@ For a state or control-flow change:
 
 ```ts
 function expandSkill(command: string): string {
-  const skillName = command.slice(1);
-  return `use the ${skillName} skill`;
+  const skillName = command.slice(1)
+  return `use the ${skillName} skill`
 }
 ```
 
-- Follow the selection above and split dense concepts into smaller views. When HTML is explicitly requested or a static figure cannot convey the required layout or interaction, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user.
+- For a visual UI, layout, state comparison, or concept too dense for Mermaid, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user:
+
+```
+Bash(open path/to/show-me-{description}.html)
+```
 
 ### guidance
 

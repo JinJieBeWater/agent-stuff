@@ -1,21 +1,9 @@
 ---
 name: show-me
-description: "Use for visual explanations, relationship diagrams, data charts, product-design sketches, and interactive demos. Choose code sketches, native Mermaid, or HTML."
-license: MIT
+description: Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts. Use when explaining a mechanism, relationships, or options.
 ---
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.
-
-### Choose a view
-
-Honor a requested tool or deliverable format. When editing an existing spec, keep its tool and format.
-
-| Need                                                                                  | Default                  |
-| ------------------------------------------------------------------------------------- | ------------------------ |
-| Logic, calls, components, directories, or code changes                                | Code sketch or diff      |
-| Exact values, field mappings, or item-by-item comparison                              | Markdown table           |
-| Ordinary flows, states, sequences, classes, ER, mindmaps, timelines, or Git histories | Native Mermaid rendering |
-| Clicking, input, switching views, or other actual interaction                         | HTML                     |
 
 - Show logic or an algorithm as pseudocode:
 
@@ -55,7 +43,7 @@ src/
 └── transport/      # sends API requests
 ```
 
-- For ordinary component interaction, control flow, or data flow, use the native Mermaid route:
+- Show component interaction, control flow, or data flow with Mermaid:
 
 ```mermaid
 sequenceDiagram
@@ -121,12 +109,16 @@ For a state or control-flow change:
 
 ```ts
 function expandSkill(command: string): string {
-  const skillName = command.slice(1);
-  return `use the ${skillName} skill`;
+  const skillName = command.slice(1)
+  return `use the ${skillName} skill`
 }
 ```
 
-- Follow the selection above and split dense concepts into smaller views. When HTML is explicitly requested or a static figure cannot convey the required layout or interaction, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user.
+- For a visual UI, layout, state comparison, or concept too dense for Mermaid, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user:
+
+```bash
+open path/to/show-me-{description}.html
+```
 
 ### guidance
 
@@ -134,11 +126,9 @@ Place each visual next to the short text it supports. Keep only the calls, files
 
 You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.
 
-### Pi native rendering
+### Pi rendering
 
-- Use this Mermaid route for the supported ordinary diagram types below.
-- Pi's built-in renderer draws top-level Mermaid fences directly; keep them outside lists and blockquotes. No extra drawing tool or settings change is needed.
-- Ordinary Markdown tables are styled by `pi-borderless-tables`; keep them as Markdown tables rather than drawing their borders by hand.
-- Supported terminal diagrams include flowcharts with subgraphs, sequence, state, class and ER diagrams. Also available: `mindmap` for hierarchies, `timeline` for chronological events, `gitGraph` for commit/branch history and `pie` for proportions (displayed as bars).
-- Use `classDef` / `:::class` when categories or states benefit from styling: `fill`, `stroke`, `color` and `font-weight:bold` are supported. Unstyled parts follow Pi's current theme.
-- Node links use `click NodeId "https://..."`; only the label text is clickable, and only when the terminal supports hyperlinks.
+- Pi renders top-level Mermaid fences as terminal diagrams; keep them outside lists and blockquotes. Supported: flowcharts with subgraphs, sequence, state, class and ER diagrams, `mindmap`, `timeline`, `gitGraph`, and `pie` (drawn as bars).
+- Style categories or states with `classDef` / `:::class` (`fill`, `stroke`, `color`, `font-weight:bold`); unstyled parts follow Pi's theme.
+- `click NodeId "https://..."` makes the node label a link on terminals with hyperlink support.
+- Keep tables as plain Markdown tables; `pi-borderless-tables` draws their layout.

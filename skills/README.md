@@ -15,7 +15,7 @@
 
 ## show-me
 
-统一选择代码草图、精确表格、日常关系图、基础数据图、产品设计材料、专业图和交互 HTML。保留用户指定的工具或格式，修改已有规格时沿用原工具。
+用简洁的代码形状草图、Mermaid 图和聚焦的 HTML 帮助用户直观理解当前话题。通用版保持上游原文；Pi 版只改调用方式、打开 HTML 的命令，并补充 Pi 渲染说明。
 
 | 版本 | 源文件                                             | 调用方式                                                                 |
 | ---- | -------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -36,4 +36,4 @@
 
 ## 来源和许可
 
-`show-me` 基于 [HumanLayer 的原始 Skill](https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me)，本仓库加入工具分工和 Pi 渲染规则。两版目录均附原始 [MIT 许可](pi/show-me/LICENSE)，版权声明保留为 HumanLayer；仓库其他部分的许可范围不因此改变。
+`show-me` 基于 [HumanLayer 的原始 Skill](https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me)，Pi 版只做宿主适配。两版目录均附原始 [MIT 许可](pi/show-me/LICENSE)，版权声明保留为 HumanLayer；仓库其他部分的许可范围不因此改变。

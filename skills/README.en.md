@@ -15,7 +15,7 @@
 
 ## show-me
 
-Choose between code sketches, exact tables, everyday relationship diagrams, basic data charts, product design materials, specialized figures, and interactive HTML. Keep the user's chosen tool or format, and use the original tool when editing an existing specification.
+Help the user understand the current topic visually with concise code-shape sketches, Mermaid diagrams, and focused HTML. The shared version keeps the upstream text; the Pi version only changes invocation and the HTML open command, and adds Pi rendering notes.
 
 | Version | Source                                             | Invocation                                                                                                                 |
 | ------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -36,4 +36,4 @@ Basic code sketches and tables work directly. Pi's native relationship diagrams 
 
 ## Source and license
 
-`show-me` is based on [HumanLayer's original Skill](https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me). This repository adds tool selection and Pi rendering rules. Both version directories include the original [MIT license](pi/show-me/LICENSE), retaining HumanLayer's copyright notice. This does not change the licensing scope of the rest of the repository.
+`show-me` is based on [HumanLayer's original Skill](https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me). The Pi version only adds host adaptation. Both version directories include the original [MIT license](pi/show-me/LICENSE), retaining HumanLayer's copyright notice. This does not change the licensing scope of the rest of the repository.
