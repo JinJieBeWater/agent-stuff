@@ -32,7 +32,7 @@ For example, in Pi:
 
 ## Drawing dependencies
 
-Basic code sketches and tables work directly. Pi's native relationship diagrams and data charts use this repository's `pi-lovely-mermaid` and the separately installed `pi-unicode-charts`, respectively.
+Basic code sketches and tables work directly. Pi's native relationship diagrams use Pi's built-in Mermaid rendering.
 
 ## Source and license
 

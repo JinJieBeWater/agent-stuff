@@ -83,9 +83,7 @@
     },
     "npm:@howaboua/pi-skill-harness-and-agent-engineering",
     "../../my/personal/fork/howaboua-pi-stuff/packages/pi-agent-board",
-    "../../my/pi-stuff/packages/pi-lovely-mermaid",
     "../../my/personal/fork/howaboua-pi-stuff/packages/pi-notes-compaction",
-    "npm:@howaboua/pi-unicode-charts",
     "../../my/pi-stuff/packages/pi-borderless-tables",
     "../../my/pi-stuff/packages/pi-herdr-session-move",
     "../../my/pi-stuff/packages/pi-herdr-tab-title",
@@ -130,9 +128,6 @@
   "theme": "herdr",
   "treeFilterMode": "all",
   "tuiMode": "fullscreen",
-  "markdown": {
-    "mermaid": "off"
-  },
   "codemode": {
     "mode": "on",
     "inlineBudget": 4500

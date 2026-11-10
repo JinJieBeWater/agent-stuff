@@ -18,9 +18,7 @@
     "staged": "vp staged",
     "hooks:setup": "vp config"
   },
-  "dependencies": {
-    "lovely-mermaid": "0.3.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@earendil-works/pi-ai": "1.5.0",
     "@earendil-works/pi-coding-agent": "1.5.0",
@@ -48,7 +46,6 @@
   "packageManager": "bun@1.4.4",
   "pi": {
     "extensions": [
-      "./packages/pi-lovely-mermaid/index.ts",
       "./packages/pi-borderless-tables/index.ts",
       "./packages/pi-herdr-session-move/index.ts",
       "./packages/pi-herdr-tab-title/index.ts",

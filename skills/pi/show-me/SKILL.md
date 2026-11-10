@@ -1,6 +1,6 @@
 ---
 name: show-me
-description: "Use for visual explanations, relationship diagrams, data charts, product-design sketches, and interactive demos. Choose code sketches, native Mermaid/charts, or HTML."
+description: "Use for visual explanations, relationship diagrams, data charts, product-design sketches, and interactive demos. Choose code sketches, native Mermaid, or HTML."
 license: MIT
 ---
 
@@ -15,10 +15,7 @@ Honor a requested tool or deliverable format. When editing an existing spec, kee
 | Logic, calls, components, directories, or code changes                                | Code sketch or diff      |
 | Exact values, field mappings, or item-by-item comparison                              | Markdown table           |
 | Ordinary flows, states, sequences, classes, ER, mindmaps, timelines, or Git histories | Native Mermaid rendering |
-| One quick single-series bar/line chart, index-based point plot, sparkline, or heatmap | Host-native charts       |
 | Clicking, input, switching views, or other actual interaction                         | HTML                     |
-
-Use native charts for a quick standalone plot.
 
 - Show logic or an algorithm as pseudocode:
 
@@ -140,8 +137,7 @@ You may use one of these, you may use several, it is unlikely you will use all o
 ### Pi native rendering
 
 - Use this Mermaid route for the supported ordinary diagram types below.
-- In Pi, the installed `pi-lovely-mermaid` extension renders top-level Mermaid fences directly; keep them outside lists and blockquotes. Native `markdown.mermaid: off` is intentional; no extra drawing tool or settings change is needed.
-- For native charts, write top-level `chart` fences for `pi-unicode-charts`: `type: bar|line|scatter|sparkline|heatmap`, optional `title:`, then `data:` and rows such as `Label 42`. Its scatter uses input order for x.
+- Pi's built-in renderer draws top-level Mermaid fences directly; keep them outside lists and blockquotes. No extra drawing tool or settings change is needed.
 - Ordinary Markdown tables are styled by `pi-borderless-tables`; keep them as Markdown tables rather than drawing their borders by hand.
 - Supported terminal diagrams include flowcharts with subgraphs, sequence, state, class and ER diagrams. Also available: `mindmap` for hierarchies, `timeline` for chronological events, `gitGraph` for commit/branch history and `pie` for proportions (displayed as bars).
 - Use `classDef` / `:::class` when categories or states benefit from styling: `fill`, `stroke`, `color` and `font-weight:bold` are supported. Unstyled parts follow Pi's current theme.

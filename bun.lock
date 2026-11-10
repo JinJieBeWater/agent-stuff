@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "pi-stuff",
-      "dependencies": {
-        "lovely-mermaid": "0.3.3",
-      },
       "devDependencies": {
         "@earendil-works/pi-ai": "1.5.0",
         "@earendil-works/pi-coding-agent": "1.5.0",
@@ -82,23 +79,12 @@
         "@earendil-works/pi-coding-agent": "*",
       },
     },
-    "packages/pi-lovely-mermaid": {
-      "name": "@jinjiebewater/pi-lovely-mermaid",
-      "version": "0.1.0",
-      "dependencies": {
-        "lovely-mermaid": "0.3.3",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-tui": "*",
-      },
-    },
     "packages/pi-skill-discovery": {
       "name": "@jinjiebewater/pi-skill-discovery",
       "version": "0.1.0",
       "peerDependencies": {
-        "@earendil-works/pi-ai": "*",
         "@earendil-works/pi-coding-agent": "*",
+        "typebox": "*",
       },
     },
     "packages/pi-tool-exposure": {
@@ -194,8 +180,6 @@
     "@jinjiebewater/pi-herdr-tab-title": ["@jinjiebewater/pi-herdr-tab-title@workspace:packages/pi-herdr-tab-title"],
 
     "@jinjiebewater/pi-herdr-theme": ["@jinjiebewater/pi-herdr-theme@workspace:packages/pi-herdr-theme"],
-
-    "@jinjiebewater/pi-lovely-mermaid": ["@jinjiebewater/pi-lovely-mermaid@workspace:packages/pi-lovely-mermaid"],
 
     "@jinjiebewater/pi-skill-discovery": ["@jinjiebewater/pi-skill-discovery@workspace:packages/pi-skill-discovery"],
 
@@ -614,8 +598,6 @@
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.33.0", "", { "os": "win32", "cpu": "x64" }, "sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA=="],
 
     "long": ["long@5.3.2", "", {}, "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="],
-
-    "lovely-mermaid": ["lovely-mermaid@0.3.3", "", {}, "sha512-EMLJS934qwt2MLO/a5o+T/89HGbuXZPwmCpHIhHO+DVrm+y5tHlEHgpZzlC2o4yW/rFPHRFO9xSMafzqH4wH5A=="],
 
     "lru-cache": ["lru-cache@11.5.3", "", {}, "sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg=="],
 

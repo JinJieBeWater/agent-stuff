@@ -10,7 +10,6 @@ My [Pi](https://github.com/earendil-works/pi) extensions, custom Skills, and per
 
 | Extension                                                            | Purpose                                                                             |
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [pi-lovely-mermaid](packages/pi-lovely-mermaid/README.en.md)         | Render Mermaid as terminal text diagrams that follow the current theme              |
 | [pi-borderless-tables](packages/pi-borderless-tables/README.en.md)   | Display aligned tables without borders                                              |
 | [pi-herdr-session-move](packages/pi-herdr-session-move/README.en.md) | Move the current Pi conversation to another existing directory                      |
 | [pi-herdr-tab-title](packages/pi-herdr-tab-title/README.en.md)       | Sync Pi tab names in Herdr Core/App and the legacy TUI                              |
@@ -60,7 +59,6 @@ Omitting `extensions` or `skills` loads all entries of that type; `[]` disables 
 
 ## Configuration
 
-- [Mermaid](packages/pi-lovely-mermaid/README.en.md): set Pi's `markdown.mermaid` to `off` before enabling this extension, so native rendering does not consume the code blocks first.
 - [Session move](packages/pi-herdr-session-move/README.en.md): supports Herdr Core and the legacy TUI through their respective native runtime interfaces.
 - [Tab titles](packages/pi-herdr-tab-title/README.en.md): Core requires a Herdr App connected to the terminal; the legacy TUI uses its own socket.
 - [Automatic titles](packages/pi-auto-session-title/README.en.md): continues to read `auto-session-title.json`. Disable the extension with the same name in other packages before enabling it.
@@ -91,4 +89,4 @@ This repository has no npm release. See the [development guide](docs/development
 
 ## License
 
-No repository-wide open-source license has been assigned yet. Automatic titles are adapted from angristan/pi-extensions; see the [extension README](packages/pi-auto-session-title/README.en.md#source-and-license) for attribution and its MIT license. Mermaid attribution and licenses are in [third-party-notices.md](packages/pi-lovely-mermaid/third-party-notices.md). The HumanLayer origin and MIT license for `show-me` are documented in the [Skills guide](skills/README.en.md#source-and-license). Dependencies retain their own licenses.
+No repository-wide open-source license has been assigned yet. Automatic titles are adapted from angristan/pi-extensions; see the [extension README](packages/pi-auto-session-title/README.en.md#source-and-license) for attribution and its MIT license. The HumanLayer origin and MIT license for `show-me` are documented in the [Skills guide](skills/README.en.md#source-and-license). Dependencies retain their own licenses.

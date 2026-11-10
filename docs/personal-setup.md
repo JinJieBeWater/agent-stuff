@@ -37,7 +37,6 @@
 | [pi-browser](https://www.npmjs.com/package/@howaboua/pi-browser)                         | 控制已登录的浏览器；npm 目录中安装本地 tarball，含 changelog 入口      |
 | [pi-agent-board](https://www.npmjs.com/package/@howaboua/pi-agent-board)                 | Agent 消息板与只读查看器，含 changelog 入口                            |
 | [pi-notes-compaction](https://www.npmjs.com/package/@howaboua/pi-notes-compaction)       | 持久 notes 与上下文换窗；npm 目录中安装本地 tarball，含 changelog 入口 |
-| [pi-unicode-charts](https://www.npmjs.com/package/@howaboua/pi-unicode-charts)           | 终端柱状图、折线图、散点图、sparkline 和热力图；配置固定 `@0.1.3`      |
 | [pi-grok](https://github.com/stnly/pi-grok)                                              | Git 来源；通过 Grok 订阅搜索 X                                         |
 
 angristan 集合的启用入口：

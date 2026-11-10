@@ -37,7 +37,6 @@ Unless noted otherwise, packages use `npm:` sources with all their extension ent
 | [pi-browser](https://www.npmjs.com/package/@howaboua/pi-browser)                         | Control a logged-in browser; installed from a local tarball in the npm directory, with a changelog entry                     |
 | [pi-agent-board](https://www.npmjs.com/package/@howaboua/pi-agent-board)                 | Agent message board and read-only viewer, with a changelog entry                                                             |
 | [pi-notes-compaction](https://www.npmjs.com/package/@howaboua/pi-notes-compaction)       | Persistent notes and context window transitions; installed from a local tarball in the npm directory, with a changelog entry |
-| [pi-unicode-charts](https://www.npmjs.com/package/@howaboua/pi-unicode-charts)           | Terminal bar, line, scatter, sparkline, and heatmap charts; configured at `@0.1.3`                                           |
 | [pi-grok](https://github.com/stnly/pi-grok)                                              | Git source; search X through a Grok subscription                                                                             |
 
 Enabled entries from the angristan collection:
