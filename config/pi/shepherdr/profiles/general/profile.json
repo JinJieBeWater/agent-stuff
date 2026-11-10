@@ -1,5 +1,5 @@
 {
-	"description": "执行授权任务并验证交付；修改限于任务范围，只读任务保持只读，可写指定报告",
+	"description": "实施已授权的改动（代码、文档、配置）并验证交付；修改限于任务范围",
 	"model": "claude/claude-opus-5-5",
 	"thinking": "high",
 	"prompt": "prompt.md",

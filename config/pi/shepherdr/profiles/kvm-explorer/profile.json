@@ -1,5 +1,5 @@
 {
-  "description": "仅用于 machine=kvm：研究、探索、诊断与方案（Codex GPT-6 Luna）；研究对象只读，可写任务明确指定的报告和证据文件",
+  "description": "仅用于 machine=kvm，限只能在 KVM 做的 Linux 构建、门禁、实跑和读图：调研、诊断与方案；研究对象只读，可写任务明确指定的报告和证据文件",
   "model": "openai-codex/gpt-6-luna",
   "thinking": "high",
   "prompt": "../explorer/prompt.md",

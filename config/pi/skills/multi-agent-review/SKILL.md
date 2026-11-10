@@ -2,7 +2,7 @@
 name: multi-agent-review
 description: "手动发起多 agent PR 审查：Claude 官方 code-review 流程的 Pi 适配，支持 GitHub、Gitea 后端与本地分支，可选 --comment 发行内评论。"
 disable-model-invocation: true
-compatibility: "Pi with Shepherdr agents and the reviewer-haiku, reviewer-sonnet, reviewer-opus-high profiles; Git repository; gh for GitHub PRs."
+compatibility: "Pi with Shepherdr agents and the reviewer-haiku, reviewer-sonnet, reviewer profiles; Git repository; gh for GitHub PRs."
 ---
 
 Modified from Anthropic's `code-review` plugin (Apache-2.0). `upstream/code-review.md` is the unmodified source and `upstream/LICENSE` its license; [Upstream](#upstream) lists every change. Steps 1–9 keep upstream's numbering and wording so the two files stay diffable.
@@ -18,7 +18,7 @@ Usage: `/skill:multi-agent-review <PR number or URL> [--backend github|gitea] [-
   | --- | --- |
   | haiku | `reviewer-haiku` |
   | sonnet | `reviewer-sonnet` |
-  | Opus | `reviewer-opus-high` |
+  | Opus | `reviewer` |
 
 - **`CLAUDE.md`** below means `AGENTS.md` or `CLAUDE.md`, whichever the repository has.
 - **Every worker message** states the repository path, head SHA, materials directory, and these rules:

@@ -1,9 +1,8 @@
 {
-  "description": "仅用于 machine=kvm：速度与成本优先的分析、实现和验证（OpenCode Go DeepSeek）",
-  "model": "opencode-go/deepseek-v4.1-flash",
+  "description": "仅用于 machine=kvm，限只能在 KVM 做的 Linux 构建、门禁、实跑和读图：实施已授权的改动并验证交付；修改限于任务范围",
+  "model": "openai-codex/gpt-6.1-sol",
   "thinking": "high",
   "prompt": "../general/prompt.md",
-  "share_context": false,
   "accepts": [],
   "pi_args": []
 }

@@ -18,8 +18,7 @@
 - 没有合适的标准库或已装依赖时，引入成熟依赖优先于自研。JavaScript 包命令默认 `bunx`，仅用户要求或兼容问题时换 runner。
 - 通用 skill 维护在 `~/.agents/skills`，宿主专属留宿主目录，项目私有留项目目录；镜像用软链，同名同用途只维护一份。
 - GUI 自动化避免干扰用户当前桌面。本机窗口由 OmniWM 平铺，打开或摆放窗口前先用 omniwm skill。
-- 子 agent 按任务分两类：改代码、文档和评审在本机用 Claude Opus profile（`general`、`reviewer-opus-high`）；只能在 KVM 做的 Linux 构建、门禁、实跑和读图才开到 KVM，用 `kvm-sol`（`machine` 填 `agents list` 返回的 ID）。KVM 跑不了 Claude 模型。一次性 KVM 命令用 `hc run --on kvm`。
-- 遇到耗时构建、批量测试或批处理任务，主动提醒我可以交给 `kvm` 执行。在 KVM 执行重计算时，按全机 CPU、内存余量主动提高独立任务并发和工具线程数。
+- 遇到耗时构建、批量测试或批处理任务，主动提醒我可以交给 `kvm` 执行；一次性 KVM 命令用 `hc run --on kvm`。在 KVM 执行重计算时，按全机 CPU、内存余量主动提高独立任务并发和工具线程数。
 - 委派大额未提交改动：简报带基线 ref，先 `--stat`/name-status 定范围，再按分配路径读 diff；附已有门禁日志，不让 worker 重跑。
 - 本机环境补充规则：若 `~/.pi/agent/local-environment.md` 存在，读取并遵循；该文件不入库。
 
