@@ -1,6 +1,6 @@
 {
   "description": "仅用于 machine=kvm，限只能在 KVM 做的 Linux 构建、门禁、实跑和读图：调研、诊断与方案；研究对象只读，可写任务明确指定的报告和证据文件",
-  "model": "openai-codex/gpt-6-luna",
+  "model": "opencode-go/deepseek-v4.1-flash",
   "thinking": "high",
   "prompt": "../explorer/prompt.md",
   "accepts": [],

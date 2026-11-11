@@ -1,6 +1,6 @@
 {
 	"description": "调研、资料采集、诊断与方案，产出报告的调研也用它；研究对象只读，可写任务明确指定的报告和证据文件",
-	"model": "magpie/codex/gpt-6-luna",
+	"model": "magpie/opencode-go/deepseek-v4.1-flash",
 	"thinking": "high",
 	"prompt": "prompt.md",
 	"accepts": [],
