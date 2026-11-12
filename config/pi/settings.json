@@ -98,8 +98,7 @@
     {
       "source": "../../my/personal/fork/howaboua-pi-stuff/packages/pi-shepherdr",
       "extensions": []
-    },
-    "npm:agents-cron"
+    }
   ],
   "quietStartup": true,
   "retry": {
