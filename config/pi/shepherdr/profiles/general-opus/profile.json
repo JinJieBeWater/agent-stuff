@@ -1,0 +1,8 @@
+{
+	"description": "高级通用任务：调研、分析、方案与已授权的实施，验证交付；修改限于任务范围",
+	"model": "claude/claude-opus-5-5",
+	"thinking": "high",
+	"prompt": "../general/prompt.md",
+	"accepts": [],
+	"pi_args": []
+}
