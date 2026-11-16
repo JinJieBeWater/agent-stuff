@@ -16,11 +16,13 @@
 始终读取并遵循 `~/.agents/AGENTS.md`。
 ```
 
-SKILL.md 的格式与自动发现目录也分开处理：共享目录提供标准 skill 包；宿主支持 `~/.agents/skills` 时直接加载，否则可在宿主 skill 目录添加单项软链。通用指令还提供按 name、description 选取 skill 的文件读取入口，供没有原生 skill 搜索工具的 agent 使用。
+共享目录提供标准 skill 包，宿主原有的加载与调用方式保持不变；通用指令只保留明确的 skill 使用要求。
 
 ## 本机整理与边界
 
-- 通用沟通、权限、agent 文本写作、验证、提交和清理规则在共享源。Pi 版以它为底，并入 ask、Shepherdr profiles、手动多 agent 审查和本机环境规则，去掉与 Pi 的 skill_search、ponytail 重复的条目；修改共享规则时按需同步 Pi 版。本机项目环境约定保存在不入库的 `~/.pi/agent/local-environment.md`。
+- 通用版以 Pi 版为内容基线，保留沟通、权限、agent 文本写作、验证、提交和清理规则；提问约定保留问题集中、逐题列出和推荐项说明，不绑定工具名称。
+- Pi 专属工具、路径和环境补充入口留在 Pi 版；通用版不规定 skill 搜索或兜底查找机制，也不引入 Ryugi、Ponytail 的整套工作流。两份文件不自动继承，修改共同规则时需对照另一份检查是否同步。
+- KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力；通用版保留使用原则，连接命令、地址与项目位置留在对应 skill 或环境说明。本机项目环境约定保存在不入库的 `~/.pi/agent/local-environment.md`，由 Pi 版引用。
 - Codex 和 Claude 的全局文件原先已读取共享源，保留各自额外规则。
 - 本次从 Pi 安装来源暴露的通用 skill、依赖和未导出原因见[审计清单](../../docs/pi-shared-skills-audit-2026-11-09.md)。上游目录原样保留，整个目录软链，不复制 SKILL.md。
 - 含本机网络地址的 `configure-kvm-moshi-via-tailscale` 实体保留在 `~/.agents/skills`，由 Pi/Codex/Claude 软链使用；它和本机环境补充规则均不进入公开仓库，换机器时私下恢复。
