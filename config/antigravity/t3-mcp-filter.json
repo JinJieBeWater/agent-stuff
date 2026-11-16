@@ -1,0 +1,33 @@
+{
+  "disabledPrefixes": ["device_", "t3_theme_", "t3_attachment_"],
+  "disabledTools": [
+    "schedule_task",
+    "list_scheduled_tasks",
+    "delete_scheduled_task",
+    "run_scheduled_task_now",
+    "t3_workflow_stop",
+    "t3_background_wait",
+    "t3_environment_preferences_update",
+    "t3_project_delete",
+    "t3_thread_send_attachments",
+    "preview_recording_start",
+    "preview_recording_stop",
+    "create_threads"
+  ],
+  "directTools": [
+    "delegate_task",
+    "orchestrator_capabilities",
+    "task_status",
+    "task_cancel",
+    "t3_thread_read",
+    "t3_thread_list",
+    "t3_thread_send",
+    "html_preview",
+    "html_render",
+    "preview_status",
+    "preview_open",
+    "preview_snapshot",
+    "request_secret",
+    "send_to_user"
+  ]
+}
