@@ -1,9 +1,9 @@
 {
-	"description": "仅供 multi-agent-review 按名调用；其余评审用 reviewer",
-	"model": "claude/claude-sonnet-5-5",
-	"thinking": "high",
-	"prompt": "../reviewer/prompt.md",
-	"share_context": false,
-	"accepts": ["base"],
-	"pi_args": []
+  "description": "仅供 multi-agent-review 按名调用；其余评审用 reviewer",
+  "model": "claude/claude-sonnet-5-5",
+  "thinking": "high",
+  "prompt": "../reviewer/prompt.md",
+  "share_context": false,
+  "accepts": ["base"],
+  "pi_args": []
 }

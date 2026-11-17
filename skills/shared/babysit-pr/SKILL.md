@@ -32,12 +32,12 @@ python3 <skill-dir>/scripts/pr-wait https://git.example.com/team/app/pulls/12 --
 - Start it again after a push, after handling an exit 1, and after a resume.
 - An event that needs no action: wait again silently. Post nothing like "still waiting".
 
-| Exit | Meaning                                                                                          | Next                                                                   |
-| ---- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| 0    | target met, new event (`any-change`), or merged                                                  | event → step 4; ready or merged → step 5                               |
+| Exit | Meaning                                                                                                           | Next                                                                                  |
+| ---- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 0    | target met, new event (`any-change`), or merged                                                                   | event → step 4; ready or merged → step 5                                              |
 | 1    | needs action, a gate is unknown or needs a human, or closed; with `--once`, target not met yet (pending included) | blocked → step 4; unknown or needs_human → fix the cause or hand off; closed → report |
-| 2    | input, auth, transport, or response error, or another watcher holds this PR                      | fix input or credentials; no retry loop                                |
-| 130  | interrupted                                                                                      | rerun while still babysitting                                          |
+| 2    | input, auth, transport, or response error, or another watcher holds this PR                                       | fix input or credentials; no retry loop                                               |
+| 130  | interrupted                                                                                                       | rerun while still babysitting                                                         |
 
 `green` covers CI only and never means ready. An `unknown` gate never counts as passed.
 

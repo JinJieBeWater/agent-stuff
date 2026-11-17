@@ -46,12 +46,12 @@ Lists page with `?page=N&limit=50`; read until an empty page or `total` is reach
 
 ## Read
 
-| Path under `/repos/<o>/<r>` | File | Used for |
-| --- | --- | --- |
-| `/pulls/<n>` | `pr.json` | `title`, `body`, `state`, `merged`, `draft`, `base.ref`; the head SHA is `head.sha` |
-| `/pulls/<n>.diff` | `pr.diff` | the change |
-| `/issues/<n>/comments` (all pages) | `comments.json` | step 1 marker check |
-| `/pulls/<n>/reviews` (all pages) | `reviews.json` | step 1 marker check |
+| Path under `/repos/<o>/<r>`        | File            | Used for                                                                            |
+| ---------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
+| `/pulls/<n>`                       | `pr.json`       | `title`, `body`, `state`, `merged`, `draft`, `base.ref`; the head SHA is `head.sha` |
+| `/pulls/<n>.diff`                  | `pr.diff`       | the change                                                                          |
+| `/issues/<n>/comments` (all pages) | `comments.json` | step 1 marker check                                                                 |
+| `/pulls/<n>/reviews` (all pages)   | `reviews.json`  | step 1 marker check                                                                 |
 
 ## Write (`--comment` only)
 

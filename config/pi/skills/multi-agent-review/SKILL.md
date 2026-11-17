@@ -14,11 +14,11 @@ Usage: `/skill:multi-agent-review <PR number or URL> [--backend github|gitea] [-
 - **Launching an agent** means an `agents` spawn of a new worker, in Code Mode with `Promise.allSettled` for parallel ones. Set `cwd` to the materials directory, since workers started inside a repo worktree have timed out at startup.
 - **Models** map to profiles. If one is missing, stop and report it; do not substitute another model.
 
-  | Upstream | Profile |
-  | --- | --- |
-  | haiku | `reviewer-haiku` |
-  | sonnet | `reviewer-sonnet` |
-  | Opus | `reviewer` |
+  | Upstream | Profile           |
+  | -------- | ----------------- |
+  | haiku    | `reviewer-haiku`  |
+  | sonnet   | `reviewer-sonnet` |
+  | Opus     | `reviewer`        |
 
 - **`CLAUDE.md`** below means `AGENTS.md` or `CLAUDE.md`, whichever the repository has.
 - **Every worker message** states the repository path, head SHA, materials directory, and these rules:
@@ -43,6 +43,7 @@ This step is done when `pr.diff` is non-empty and the head SHA is known. An empt
 ## Review
 
 **Agent assumptions (applies to all agents and subagents):**
+
 - All tools are functional and will work without error. Do not test tools or make exploratory calls. Make sure this is clear to every subagent that is launched.
 - Only call a tool if it is required to complete the task. Every tool call should have a clear purpose.
 
@@ -135,6 +136,7 @@ Notes:
 
   ```markdown
   <!-- pi-code-review -->
+
   ## Code review
 
   未发现问题。已检查 bug 和 AGENTS.md/CLAUDE.md 合规。
@@ -155,13 +157,13 @@ To sync, fetch the new command file, `diff` it against `upstream/code-review.md`
 
 Changes from upstream:
 
-| Change | Why |
-| --- | --- |
-| `Running this on Pi` and `Prepare materials` added, and step 10 for cleanup | Workers are Pi sessions with no `gh` permissions or shared checkout |
-| Backends split into `references/github.md` and `references/gitea.md`, as in `babysit-pr`; `--base` added | The team's repositories are on Gitea; upstream's commands and inline-comment tool are GitHub-only |
-| `CLAUDE.md` also means `AGENTS.md` | These repositories use `AGENTS.md` |
-| "Already reviewed" detected by the `<!-- pi-code-review -->` marker | Comments post under the user's account, not a Claude identity |
-| Step 5 validates all four agents' issues, after merging duplicates | Upstream says "agents 3 and 4" yet also specifies validators for CLAUDE.md issues and filters on the result; each validator here is a full Pi session |
-| Issues carry a location; validators reply `VALIDATED` or `NOT VALIDATED` | The main agent needs both to filter and post |
-| Failed workers are retried once, then disclosed | Pi spawns can fail, and a missing answer is different from a clean one |
-| Output in Chinese | User's default language |
+| Change                                                                                                   | Why                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Running this on Pi` and `Prepare materials` added, and step 10 for cleanup                              | Workers are Pi sessions with no `gh` permissions or shared checkout                                                                                   |
+| Backends split into `references/github.md` and `references/gitea.md`, as in `babysit-pr`; `--base` added | The team's repositories are on Gitea; upstream's commands and inline-comment tool are GitHub-only                                                     |
+| `CLAUDE.md` also means `AGENTS.md`                                                                       | These repositories use `AGENTS.md`                                                                                                                    |
+| "Already reviewed" detected by the `<!-- pi-code-review -->` marker                                      | Comments post under the user's account, not a Claude identity                                                                                         |
+| Step 5 validates all four agents' issues, after merging duplicates                                       | Upstream says "agents 3 and 4" yet also specifies validators for CLAUDE.md issues and filters on the result; each validator here is a full Pi session |
+| Issues carry a location; validators reply `VALIDATED` or `NOT VALIDATED`                                 | The main agent needs both to filter and post                                                                                                          |
+| Failed workers are retried once, then disclosed                                                          | Pi spawns can fail, and a missing answer is different from a clean one                                                                                |
+| Output in Chinese                                                                                        | User's default language                                                                                                                               |

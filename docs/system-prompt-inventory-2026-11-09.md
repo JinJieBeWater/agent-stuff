@@ -20,13 +20,13 @@
 
 **按当前源码/配置重建的顺序**（非载荷抓包）：
 
-| 段 | 来源/内容 | token 数 |
-|---|---|---:|
-| Pi 基础 sections | `dist/core/system-prompt.js:67-147`：preamble、工具描述、rules、docs、addendum、project_context、skills、cwd、扩展 sections | 未单独记账 |
-| project context | `~/.pi/agent/AGENTS.md` → `~/my/pi-stuff/config/pi/AGENTS.md`，以及 `~/AGENTS.md` → `~/.agents/AGENTS.md` → `~/my/pi-stuff/config/shared/AGENTS.md` | 未单独记账；两文件内容可直接读取 |
-| skills | 当前配置启用的 skills 汇总，由 Pi `formatSkillsForPrompt` 形成；PCC turn lifecycle 可替换 prompt skills | 未单独记账；skill 描述会按激活/发现机制变化 |
-| PCC GPT 模式 | `packages/pi-codex-conversion/src/prompt/build-system-prompt.ts:153-197` 依据 `gpt` 重构内容；其他扩展仍能写入 sections | 未单独记账 |
-| 首轮运行时注入 | `pi-notes-compaction` window-message、`pi-shepherdr` messages/guidance、`pi-agent-board` briefing；再加当前用户消息及可能的时间提醒 | 具体首轮正文和各段 token 未见于当前日志 |
+| 段               | 来源/内容                                                                                                                                           |                                    token 数 |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------: |
+| Pi 基础 sections | `dist/core/system-prompt.js:67-147`：preamble、工具描述、rules、docs、addendum、project_context、skills、cwd、扩展 sections                         |                                  未单独记账 |
+| project context  | `~/.pi/agent/AGENTS.md` → `~/my/pi-stuff/config/pi/AGENTS.md`，以及 `~/AGENTS.md` → `~/.agents/AGENTS.md` → `~/my/pi-stuff/config/shared/AGENTS.md` |            未单独记账；两文件内容可直接读取 |
+| skills           | 当前配置启用的 skills 汇总，由 Pi `formatSkillsForPrompt` 形成；PCC turn lifecycle 可替换 prompt skills                                             | 未单独记账；skill 描述会按激活/发现机制变化 |
+| PCC GPT 模式     | `packages/pi-codex-conversion/src/prompt/build-system-prompt.ts:153-197` 依据 `gpt` 重构内容；其他扩展仍能写入 sections                             |                                  未单独记账 |
+| 首轮运行时注入   | `pi-notes-compaction` window-message、`pi-shepherdr` messages/guidance、`pi-agent-board` briefing；再加当前用户消息及可能的时间提醒                 |     具体首轮正文和各段 token 未见于当前日志 |
 
 `PCC` 日志中的 8141 是请求总输入 token 数（包含 system 与消息上下文），不是 prompt 的独立计数。作为粗上界/一次请求总量参考，不将其误报成 system prompt token 数。无法给出段级近似数，证据源没有文本 payload/tokenizer 结果。
 
@@ -40,14 +40,14 @@
 
 ## 2. 重复、冲突、陈旧引用
 
-| 项目 | 观察 | 证据/判断 |
-|---|---|---|
-| AGENTS 首行重复 | `~/.pi/agent/AGENTS.md:1` 指定读 `~/.agents/AGENTS.md`；Pi 上下文加载两者，且共享 AGENTS 自己包含沟通与权限总规则。语义有意继承，但增加一行重复指令。 | 两条软链目标可用 `ls -l ~/.pi/agent/AGENTS.md ~/AGENTS.md ~/.agents/AGENTS.md` 核实；配置文件内容见 `config/pi/AGENTS.md:1`、`config/shared/AGENTS.md:1`。核心加载格式见 `dist/core/system-prompt.js:96-99`。 |
-| show-me 双版本 | Pi AGENTS:3 要求 Pi 专属 `~/.pi/agent/skills/show-me/SKILL.md`；共享 AGENTS:4 要求通用 `~/.agents/skills/show-me/SKILL.md`。两处都是绝对路径，但后者与前者选择相反；settings `skills` 还显式排除通用路径（settings 后段）。 | 可能两种副本都在，但需要梳理唯一维护来源；当前 instruction 与用户/宿主政策冲突时，以 Pi 覆盖规则为准。 |
-| unicode charts 重复包声明 | `settings.json:100` 有无版本约束 npm 包，`extensionChangelogVersions` 又记录 `@0.1.3` 和 `@howaboua/pi-unicode-charts` 的 0.1.4。版本/来源状态不一致，可能加载重复或形成遗留 changelog key；需 package resolver 实际路径确认。 | settings `:100` 及后部 `extensionChangelogVersions`。 |
-| show-me 路径优先级 | 两份路径都存在，且分别指向 `~/my/pi-stuff/skills/pi/show-me` 与 `~/my/pi-stuff/skills/shared/show-me`。Pi AGENTS 明确要求 Pi 专属版；共享 AGENTS 指向通用版；settings 排除通用路径。这里是版本/来源分歧，不是失效路径。 | `ls -l ~/.pi/agent/skills/show-me ~/.agents/skills/show-me`；`settings.json:165-170`；Pi AGENTS:3、共享 AGENTS:4。 |
-| 过时 API 声称 | 现有 Pi 1.5.0 核心提供结构化 section `sections`，事件 API 通过 `event.systemPromptOptions` 修改（`dist/core/system-prompt.js:67-147`、PCC `turn-lifecycle.ts:64-71`）。静态检查的当前启用 prompt 扩展并未证明有返回冻结的 `systemPrompt` 链；不能将历史源码风险直接判成当前运行故障。 | 需要逐个具体扩展版本比对旧回调返回值；此轮未确认“返回 systemPrompt 冻结链”的活跃实例。 |
-| 配置路径中的包失活判断 | settings 的 `extensions: []` 表示不加载该包内扩展入口，但包本身仍可能提供 skills、commands、themes 或依赖，故不直接标成垃圾。 | `settings.json:41-50,81-83,88-95,108-...`。 |
+| 项目                      | 观察                                                                                                                                                                                                                                                                                  | 证据/判断                                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AGENTS 首行重复           | `~/.pi/agent/AGENTS.md:1` 指定读 `~/.agents/AGENTS.md`；Pi 上下文加载两者，且共享 AGENTS 自己包含沟通与权限总规则。语义有意继承，但增加一行重复指令。                                                                                                                                 | 两条软链目标可用 `ls -l ~/.pi/agent/AGENTS.md ~/AGENTS.md ~/.agents/AGENTS.md` 核实；配置文件内容见 `config/pi/AGENTS.md:1`、`config/shared/AGENTS.md:1`。核心加载格式见 `dist/core/system-prompt.js:96-99`。 |
+| show-me 双版本            | Pi AGENTS:3 要求 Pi 专属 `~/.pi/agent/skills/show-me/SKILL.md`；共享 AGENTS:4 要求通用 `~/.agents/skills/show-me/SKILL.md`。两处都是绝对路径，但后者与前者选择相反；settings `skills` 还显式排除通用路径（settings 后段）。                                                           | 可能两种副本都在，但需要梳理唯一维护来源；当前 instruction 与用户/宿主政策冲突时，以 Pi 覆盖规则为准。                                                                                                        |
+| unicode charts 重复包声明 | `settings.json:100` 有无版本约束 npm 包，`extensionChangelogVersions` 又记录 `@0.1.3` 和 `@howaboua/pi-unicode-charts` 的 0.1.4。版本/来源状态不一致，可能加载重复或形成遗留 changelog key；需 package resolver 实际路径确认。                                                        | settings `:100` 及后部 `extensionChangelogVersions`。                                                                                                                                                         |
+| show-me 路径优先级        | 两份路径都存在，且分别指向 `~/my/pi-stuff/skills/pi/show-me` 与 `~/my/pi-stuff/skills/shared/show-me`。Pi AGENTS 明确要求 Pi 专属版；共享 AGENTS 指向通用版；settings 排除通用路径。这里是版本/来源分歧，不是失效路径。                                                               | `ls -l ~/.pi/agent/skills/show-me ~/.agents/skills/show-me`；`settings.json:165-170`；Pi AGENTS:3、共享 AGENTS:4。                                                                                            |
+| 过时 API 声称             | 现有 Pi 1.5.0 核心提供结构化 section `sections`，事件 API 通过 `event.systemPromptOptions` 修改（`dist/core/system-prompt.js:67-147`、PCC `turn-lifecycle.ts:64-71`）。静态检查的当前启用 prompt 扩展并未证明有返回冻结的 `systemPrompt` 链；不能将历史源码风险直接判成当前运行故障。 | 需要逐个具体扩展版本比对旧回调返回值；此轮未确认“返回 systemPrompt 冻结链”的活跃实例。                                                                                                                        |
+| 配置路径中的包失活判断    | settings 的 `extensions: []` 表示不加载该包内扩展入口，但包本身仍可能提供 skills、commands、themes 或依赖，故不直接标成垃圾。                                                                                                                                                         | `settings.json:41-50,81-83,88-95,108-...`。                                                                                                                                                                   |
 
 对过时引用/工具/profile 的全文检索只覆盖 agent 配置、可见 profiles 与已安装/本地 fork 清单；没有扫描所有历史备份文件的语义引用。报告不宣称穷尽全磁盘死引用。
 
