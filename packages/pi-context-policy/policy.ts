@@ -1,6 +1,14 @@
 export type WhenEnv = Record<string, string | boolean>;
-type Section = { id: string; text: string; whenEnv: WhenEnv };
-type Rule<Key extends string> = Record<Key, string> & { whenEnv: WhenEnv };
+type Section = {
+  id: string;
+  text: string;
+  whenEnv: WhenEnv;
+  whenHost?: "tui" | "herdr-core-tui";
+};
+type Rule<Key extends string> = Record<Key, string> & {
+  whenEnv: WhenEnv;
+  whenHost?: "herdr-core-tui";
+};
 export type Policy = {
   enabled: boolean;
   sections?: Section[];
@@ -40,7 +48,9 @@ function rules<Key extends "source" | "name" | "path">(
   const seen = new Set<string>();
   return value.map((entry) => {
     const rule = object(entry, label);
-    keys(rule, [key, "whenEnv"], label);
+    keys(rule, [key, "whenEnv", "whenHost"], label);
+    if (rule.whenHost !== undefined && rule.whenHost !== "herdr-core-tui")
+      throw new Error(`${fileName}: ${label}.whenHost must be "herdr-core-tui"`);
     const target = rule[key];
     if (
       typeof target !== "string" ||
@@ -50,7 +60,11 @@ function rules<Key extends "source" | "name" | "path">(
     )
       throw new Error(`${fileName}: ${label}.${key} must be a unique nonempty string`);
     seen.add(target);
-    return { [key]: target, whenEnv: conditions(rule.whenEnv) } as Rule<Key>;
+    return {
+      [key]: target,
+      whenEnv: conditions(rule.whenEnv),
+      ...(rule.whenHost && { whenHost: rule.whenHost }),
+    } as Rule<Key>;
   });
 }
 
@@ -70,13 +84,24 @@ export function parsePolicy(value: unknown): Policy {
   const ids = new Set<string>();
   result.sections = config.sections.map((entry, index): Section => {
     const block = object(entry, `sections[${index}]`);
-    keys(block, ["id", "text", "whenEnv"], `sections[${index}]`);
+    keys(block, ["id", "text", "whenEnv", "whenHost"], `sections[${index}]`);
+    if (
+      block.whenHost !== undefined &&
+      block.whenHost !== "tui" &&
+      block.whenHost !== "herdr-core-tui"
+    )
+      throw new Error(`${fileName}: section whenHost must be "tui" or "herdr-core-tui"`);
     if (typeof block.id !== "string" || !/^[a-z][a-z0-9_-]*$/.test(block.id) || ids.has(block.id))
       throw new Error(`${fileName}: section id must be a unique lowercase identifier`);
     if (typeof block.text !== "string" || !block.text.trim())
       throw new Error(`${fileName}: section text must be nonempty`);
     ids.add(block.id);
-    return { id: block.id, text: block.text, whenEnv: conditions(block.whenEnv) };
+    return {
+      id: block.id,
+      text: block.text,
+      whenEnv: conditions(block.whenEnv),
+      ...(block.whenHost && { whenHost: block.whenHost }),
+    };
   });
   return result;
 }

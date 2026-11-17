@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +17,9 @@ import contextPolicy from "../index.ts";
 import skillDiscovery from "../../pi-skill-discovery/index.ts";
 import { matchesEnv, parsePolicy } from "../policy.ts";
 import { registerResources } from "../resources.ts";
+
+const { isHerdrCoreTui } = vi.hoisted(() => ({ isHerdrCoreTui: vi.fn(async () => false) }));
+vi.mock("../../../lib/herdr-core.ts", () => ({ isHerdrCoreTui }));
 
 async function fixture(
   run: (directory: string, source: string, skillPath: string) => Promise<void>,
@@ -37,9 +40,10 @@ async function fixture(
   await writeFile(
     join(source, "entry.mjs"),
     `
-    import { writeFileSync } from "node:fs";
+    import { appendFileSync, writeFileSync } from "node:fs";
     writeFileSync(new URL("./imported", import.meta.url), "loaded");
     export default function(pi) {
+      appendFileSync(new URL("./factory", import.meta.url), "called\\n");
       const tool = name => ({name, label:name, description:name, parameters:{type:"object"}, execute:async()=>({content:[],details:{ran:true}})});
       pi.registerTool(tool("always_tool"));
       pi.registerTool({...tool("conditional_tool"),exposure:"deferred"});
@@ -111,6 +115,7 @@ test("resource rules reject malformed targets, duplicates, unknown fields and in
       [{ [key]: "" }],
       [{ [key]: " padded " }],
       [{ [key]: "x", extra: 1 }],
+      [{ [key]: "x", whenHost: "tui" }],
       [{ [key]: "x", whenEnv: null }],
       [{ [key]: "x", whenEnv: { FLAG: 0 } }],
       [{ [key]: "x" }, { [key]: "x" }],
@@ -137,6 +142,71 @@ test("unmatched extensions are not imported, and may be absent on this machine",
     expect(c.commands).toEqual([]);
     expect(c.handlers.size).toBe(0);
     await expect(access(join(source, "imported"))).rejects.toThrow();
+  });
+});
+
+test("Core-tagged packages require ownership before importing or calling the factory", async () => {
+  await fixture(async (directory, source) => {
+    const env = { HC_TERMINAL_ID: "fixture", HC_TERMINAL_SOCKET: "/fixture/core.sock" };
+    const config = parsePolicy({ extensions: [{ source, whenHost: "herdr-core-tui" }] });
+    const rpc = collector();
+    await registerResources(rpc.pi, config, directory, env);
+    expect(rpc.tools).toEqual([]);
+    expect(rpc.commands).toEqual([]);
+    await expect(access(join(source, "imported"))).rejects.toThrow();
+    await expect(access(join(source, "factory"))).rejects.toThrow();
+
+    isHerdrCoreTui.mockResolvedValue(true);
+    try {
+      const tui = collector();
+      await registerResources(tui.pi, config, directory, env);
+      expect(tui.tools.map((tool) => tool.name)).toEqual(["always_tool", "conditional_tool"]);
+      expect(tui.commands).toEqual(["fixture-command"]);
+      expect(await readFile(join(source, "imported"), "utf8")).toBe("loaded");
+      expect(await readFile(join(source, "factory"), "utf8")).toBe("called\n");
+    } finally {
+      isHerdrCoreTui.mockReset();
+    }
+  });
+});
+
+test("the native policy shares one Core ownership lookup across loading and prompt turns", async () => {
+  await fixture(async (directory, source) => {
+    await writeFile(
+      join(directory, "pi-context-policy.json"),
+      JSON.stringify({ extensions: [{ source, whenHost: "herdr-core-tui" }] }),
+    );
+    const previous = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = directory;
+    isHerdrCoreTui.mockClear();
+    isHerdrCoreTui.mockResolvedValue(true);
+    try {
+      const c = collector();
+      await contextPolicy(c.pi);
+      const beforeAgentStart = c.handlers.get("before_agent_start")![0]!;
+      for (const mode of ["tui", "rpc", "tui"]) {
+        const sections: Record<string, string> = {};
+        await beforeAgentStart({ systemPromptOptions: { sections } }, { mode });
+        expect(Object.keys(sections)).toEqual(mode === "tui" ? ["context-policy-herdr-core"] : []);
+      }
+      expect(isHerdrCoreTui).toHaveBeenCalledTimes(1);
+
+      isHerdrCoreTui.mockResolvedValue(false);
+      const reloaded = collector();
+      await contextPolicy(reloaded.pi);
+      expect(reloaded.tools).toEqual([]);
+      const sections: Record<string, string> = {};
+      await reloaded.handlers.get("before_agent_start")![0]!(
+        { systemPromptOptions: { sections } },
+        { mode: "tui" },
+      );
+      expect(sections).toEqual({});
+      expect(isHerdrCoreTui).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previous;
+      isHerdrCoreTui.mockReset();
+    }
   });
 });
 

@@ -2,7 +2,7 @@
 
 # Pi Context Policy
 
-Selects prompt sections and managed extensions, tools, and Skills by environment. Recognizes Herdr Core and legacy Herdr TUI by default and points to their official manuals. Resource management requires explicit configuration.
+Selects prompt sections and managed extensions, tools, and Skills by environment. Points to official manuals in Herdr Core interactive terminals by default. Resource management requires explicit configuration.
 
 ## Installation
 
@@ -10,16 +10,7 @@ Installed with the [repository Git package](../../README.en.md#installation), wi
 
 ## Default behavior
 
-Without configuration, selects one environment section in this order:
-
-| Environment      | Condition                                                   | Operating instructions                                                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Herdr Core       | Both `HC_TERMINAL_ID` and `HC_TERMINAL_SOCKET` are nonempty | Use hc for peer collaboration and read `hc --skill` first (Shepherdr carries its own parent-child rules); confirm `herdr-app` is available and read `herdr-app --skill` before inspecting layouts or operating windows |
-| Legacy Herdr TUI | `HERDR_ENV=1` and `HERDR_PANE_ID` is nonempty               | Read `herdr --skill` before terminal or layout operations (Shepherdr is not loaded here)                                                                                                                                  |
-
-Core terminals may inherit legacy `HERDR_*` markers, so only the Core section is injected when both conditions match. Other environments receive no added content. Environment markers identify the backend managing the terminal; they do not prove that a usable desktop window exists.
-
-Manuals come from the installed official CLIs, without needing to load an old Herdr Skill globally. Concurrent orchestration follows Shepherdr's current mode and the user's instructions.
+In interactive Pi terminals managed by Herdr Core, use `hc` for peer collaboration and read `hc --skill` first. Before inspecting layouts or operating windows, confirm that `herdr-app` is available and read `herdr-app --skill`. Shepherdr carries its own parent-child rules.
 
 ## Configuration
 
@@ -39,11 +30,12 @@ For example, replace the default sections with team conventions:
 }
 ```
 
-- `enabled` defaults to `true`. When `sections` is omitted, the default sections are selected in the order above.
+- `enabled` defaults to `true`. When `sections` is omitted, the default Core section applies.
 - Explicit `sections` replace all default sections. Use `[]` or `{"enabled": false}` to disable them.
-- All matching custom sections are added. Core priority applies only to the default rules.
+- All matching custom sections are added.
 - Use a unique lowercase identifier for `id`. Section keys are `context-policy-<id>` and do not overwrite native sections such as `herdr`.
-- All `whenEnv` conditions must match. Strings require an exact match; `true` requires a nonempty variable; `false` requires a missing or empty variable. Omitting conditions always matches.
+- All `whenEnv` conditions must match. Strings require an exact match; `true` requires a nonempty variable; `false` requires a missing or empty variable. Omit `whenEnv` to accept any environment variables.
+- Set `whenHost: "tui"` to match interactive mode or `whenHost: "herdr-core-tui"` to also require Herdr Core ownership of the terminal. Pi supplies the mode at prompt time. Resources and prompt sections share one Core ownership lookup per extension load. Any `whenEnv` conditions must also match.
 
 UTF-8 BOM is supported. Unknown fields, invalid values, malformed JSON, and read errors are reported; defaults apply only when the file does not exist.
 
@@ -51,11 +43,11 @@ UTF-8 BOM is supported. Unknown fields, invalid values, malformed JSON, and read
 
 Pi finishes native extension loading before this extension runs, so this extension cannot undo code that has already executed. To manage a resource, disable its native automatic entry point first, then let this extension decide whether to load it. Upstream files are not modified, and dependencies are not installed automatically.
 
-For example, to enable an installed `pi-herdr` only in legacy TUI, first change the package's existing entry in `settings.json` to:
+For example, to load an installed extension only in a Core interactive terminal, disable the package's native entry point in `settings.json`:
 
 ```json
 {
-  "source": "npm:@ogulcancelik/pi-herdr",
+  "source": "npm:@example/core-tools",
   "extensions": []
 }
 ```
@@ -66,18 +58,14 @@ Then configure `pi-context-policy.json`:
 {
   "extensions": [
     {
-      "source": "npm:@ogulcancelik/pi-herdr",
-      "whenEnv": {
-        "HERDR_ENV": "1",
-        "HERDR_PANE_ID": true,
-        "HC_TERMINAL_SOCKET": false
-      }
+      "source": "npm:@example/core-tools",
+      "whenHost": "herdr-core-tui"
     }
   ]
 }
 ```
 
-Core will not import this package even if it inherits legacy `HERDR_*` markers. Default environment prompts remain active; adding resource rules does not require redefining `sections`.
+Resource rules accept `whenHost: "herdr-core-tui"`, which requires an interactive Pi terminal managed by Herdr Core. This check happens before importing managed extensions or invoking their factories. Any `whenEnv` conditions must also match. Adding resource rules does not require redefining `sections`.
 
 | Field        | Configuration                                           | Behavior                                                                                                        |
 | ------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -131,4 +119,4 @@ Prompt sections do not install Shepherdr, invoke tools, or grant extra permissio
 
 ## Development
 
-See the [development guide](../../docs/development.en.md#validation) for common commands. Tests cover Core/TUI selection, missing-variable conditions, resource configuration validation, skipping unmatched package imports, initial and later tool registration, and native Skill discovery and exclusion, without connecting to Herdr.
+See the [development guide](../../docs/development.en.md#validation) for common commands. Tests cover interactive mode and Core ownership selection, missing-variable conditions, resource configuration validation, skipping unmatched package imports, initial and later tool registration, and native Skill discovery and exclusion, without connecting to Herdr.

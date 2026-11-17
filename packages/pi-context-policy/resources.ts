@@ -10,7 +10,8 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { loadExtensionPackages } from "../../lib/extension-packages.ts";
-import { fileName, matchesEnv, type Policy } from "./policy.ts";
+import { isHerdrCoreTui } from "../../lib/herdr-core.ts";
+import { fileName, matchesEnv, type Policy, type WhenEnv } from "./policy.ts";
 
 function resourcePath(path: string, agentDir: string) {
   return path === "~"
@@ -25,6 +26,7 @@ export async function registerResources(
   config: Policy,
   agentDir = getAgentDir(),
   env: NodeJS.ProcessEnv = process.env,
+  checkCore = () => isHerdrCoreTui(pi),
 ) {
   if (
     !config.enabled ||
@@ -33,6 +35,13 @@ export async function registerResources(
     return;
   if (config.tools.length && !config.extensions.length)
     throw new Error(`${fileName}: tools rules require managed extensions`);
+  const needsCore = [...config.extensions, ...config.tools, ...config.skills].some(
+    (rule) => rule.whenHost === "herdr-core-tui" && matchesEnv(rule.whenEnv, env),
+  );
+  const coreTui = needsCore && (await checkCore());
+  const enabledByPolicy = (rule: { whenEnv: WhenEnv; whenHost?: "herdr-core-tui" }) =>
+    (rule.whenHost === undefined || coreTui) && matchesEnv(rule.whenEnv, env);
+
   const settingsManager = SettingsManager.create(agentDir, agentDir, {
     projectTrusted: false,
   });
@@ -68,7 +77,7 @@ export async function registerResources(
       )
     )
       throw new Error(`${fileName}: exclude the native skill path first: -${path}`);
-    const enabled = matchesEnv(rule.whenEnv, env);
+    const enabled = enabledByPolicy(rule);
     const info = await stat(path).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT" || enabled) throw error;
       return undefined;
@@ -89,12 +98,12 @@ export async function registerResources(
     skillPaths.push(path);
   }
 
-  const tools = new Map(config.tools.map((rule) => [rule.name, matchesEnv(rule.whenEnv, env)]));
+  const tools = new Map(config.tools.map((rule) => [rule.name, enabledByPolicy(rule)]));
   await loadExtensionPackages({
     pi,
     packages: config.extensions.map((rule) => ({
       source: rule.source,
-      enabled: matchesEnv(rule.whenEnv, env),
+      enabled: enabledByPolicy(rule),
     })),
     agentDir,
     configName: fileName,

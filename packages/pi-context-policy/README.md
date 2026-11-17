@@ -2,7 +2,7 @@
 
 # Pi Context Policy
 
-按环境选择提示词段落，以及托管的扩展、工具和 Skill。默认识别 Herdr Core 和旧 Herdr TUI，提供对应的官方手册入口；资源托管需要显式配置。
+按环境选择提示词段落，以及托管的扩展、工具和 Skill。默认在 Herdr Core 交互终端提供官方手册入口。资源托管需要显式配置。
 
 ## 安装
 
@@ -10,16 +10,7 @@
 
 ## 默认行为
 
-无需配置，按以下顺序选择一个环境段落：
-
-| 环境         | 条件                                          | 操作说明                                                                                                                                                             |
-| ------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Herdr Core   | `HC_TERMINAL_ID`、`HC_TERMINAL_SOCKET` 都非空 | 同级 agent 协作用 hc，使用前先读 `hc --skill`（父子协作规则由 Shepherdr 自带）；查询布局或操作窗口前先确认 `herdr-app` 可用并读 `herdr-app --skill` |
-| 旧 Herdr TUI | `HERDR_ENV=1` 且 `HERDR_PANE_ID` 非空         | 终端或布局操作先读 `herdr --skill`（此环境不加载 Shepherdr）                                                                                        |
-
-Core 终端可能继承旧 `HERDR_*` 标记，因此两套条件都满足时只注入 Core 段落。其他环境不添加内容。环境标记说明终端由哪个后端管理，不能证明存在可用的桌面窗口。
-
-手册由已安装的官方 CLI 提供，无需全局加载一份旧 Herdr Skill。并发编排遵循 Shepherdr 当前模式和用户要求。
+在 Herdr Core 管理的交互 Pi 终端中，同级 agent 协作用 `hc`，操作前先读 `hc --skill`。查询布局或操作窗口前，先确认 `herdr-app` 可用并读 `herdr-app --skill`。Shepherdr 自带父子协作规则。
 
 ## 配置
 
@@ -39,11 +30,12 @@ Core 终端可能继承旧 `HERDR_*` 标记，因此两套条件都满足时只�
 }
 ```
 
-- `enabled` 默认为 `true`；未配置 `sections` 时按上述顺序选择默认段落。
+- `enabled` 默认为 `true`；未配置 `sections` 时使用默认 Core 段落。
 - 显式 `sections` 替换全部默认段落；设为 `[]` 或使用 `{"enabled": false}` 可关闭。
-- 自定义段落仍会添加所有匹配项，Core 优先只适用于默认规则。
+- 自定义段落添加所有匹配项。
 - `id` 使用唯一的小写标识符；段落键为 `context-policy-<id>`，不覆盖原生 `herdr` 等段落。
-- `whenEnv` 中所有条件同时成立才生效；字符串精确匹配，`true` 要求变量非空，`false` 要求变量不存在或为空。省略条件则始终生效。
+- `whenEnv` 中所有条件同时成立才生效；字符串精确匹配，`true` 要求变量非空，`false` 要求变量不存在或为空。省略 `whenEnv` 则不限制环境变量。
+- 段落可用 `whenHost: "tui"` 匹配交互模式，或用 `whenHost: "herdr-core-tui"` 进一步要求当前终端由 Herdr Core 管理。模式取自生成提示词时的 Pi 上下文。Core 归属在本次扩展加载中查询一次，资源与提示段落共用结果。设置了 `whenEnv` 时也须匹配。
 
 支持 UTF-8 BOM；未知字段、无效值、错误 JSON 和读取错误会报错，只有文件不存在时使用默认值。
 
@@ -51,11 +43,11 @@ Core 终端可能继承旧 `HERDR_*` 标记，因此两套条件都满足时只�
 
 Pi 在扩展运行前已经完成原生扩展加载，本扩展无法撤回那些已执行的代码。要托管某个资源，先关闭它的原生自动入口，再让本扩展决定是否加载。不修改上游文件，不自动安装依赖。
 
-例如只在旧 TUI 中启用已安装的 `pi-herdr`，先把 `settings.json` 中该包的原有条目改为：
+例如只在 Core 交互终端加载已安装的扩展，先在 `settings.json` 关闭对应包的原生入口：
 
 ```json
 {
-  "source": "npm:@ogulcancelik/pi-herdr",
+  "source": "npm:@example/core-tools",
   "extensions": []
 }
 ```
@@ -66,18 +58,14 @@ Pi 在扩展运行前已经完成原生扩展加载，本扩展无法撤回那�
 {
   "extensions": [
     {
-      "source": "npm:@ogulcancelik/pi-herdr",
-      "whenEnv": {
-        "HERDR_ENV": "1",
-        "HERDR_PANE_ID": true,
-        "HC_TERMINAL_SOCKET": false
-      }
+      "source": "npm:@example/core-tools",
+      "whenHost": "herdr-core-tui"
     }
   ]
 }
 ```
 
-Core 即使继承旧 `HERDR_*` 标记也不会导入这个包。原有默认环境提示仍生效；添加资源规则不需要重写 `sections`。
+资源规则可用 `whenHost: "herdr-core-tui"`，要求 Pi 在 Herdr Core 管理的交互终端运行。该条件在导入托管扩展和调用 factory 前核验。有 `whenEnv` 时也须匹配。添加资源规则无需重写 `sections`。
 
 | 字段         | 配置                                                  | 生效行为                                                     |
 | ------------ | ----------------------------------------------------- | ------------------------------------------------------------ |
@@ -131,4 +119,4 @@ Skill 使用目录或 Markdown 文件路径；目录须直接包含 `SKILL.md`�
 
 ## 开发
 
-通用命令见[开发指南](../../docs/development.md#验证)。测试覆盖 Core/TUI 选择、环境缺失条件、资源配置校验、未匹配包不导入、工具的初始与后续注册、Skill 原生发现和禁用，不连接 Herdr。
+通用命令见[开发指南](../../docs/development.md#验证)。测试覆盖 交互模式与 Core 归属选择、环境缺失条件、资源配置校验、未匹配包不导入、工具的初始与后续注册、Skill 原生发现和禁用，不连接 Herdr。

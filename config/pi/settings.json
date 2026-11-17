@@ -32,10 +32,6 @@
       "extensions": []
     },
     {
-      "source": "npm:@ogulcancelik/pi-herdr",
-      "extensions": []
-    },
-    {
       "source": "npm:@upstash/context7-pi",
       "extensions": []
     },

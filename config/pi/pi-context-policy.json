@@ -1,19 +1,20 @@
 {
-  "extensions": [
+  "sections": [
     {
-      "source": "npm:@ogulcancelik/pi-herdr",
-      "whenEnv": {
-        "HERDR_ENV": "1",
-        "HERDR_PANE_ID": true,
-        "HC_TERMINAL_SOCKET": false
-      }
+      "id": "herdr-core",
+      "text": "当前运行在 Herdr Core 管理的终端中。同级 agent 协作用 hc，使用前先读 hc --skill；需要查询布局或操作窗口时先确认 herdr-app 可用并读 herdr-app --skill。",
+      "whenHost": "herdr-core-tui"
     },
     {
+      "id": "emphasis",
+      "text": "- `[[Word]]` pill beside its subject, not in headings/code; `[[Passed 3/3]]` ok. Red Failed/Blocked/Broken; yellow Needs you/Decision/Unverified/Partial/Skipped/At risk; green Done/Passed/Observed/Fixed; solid red Costs money/Destructive/Irreversible.\n- Follow red/yellow with **Next:** (or Check/Do/Unblock) + action.\n- `##`/leading **Label** icons: Result, Cause, Fix, Risk, Plan.\n- Bold key terms; ✓ ✗ → ├── └──.",
+      "whenHost": "tui"
+    }
+  ],
+  "extensions": [
+    {
       "source": "../../my/personal/fork/howaboua-pi-stuff/packages/pi-shepherdr",
-      "whenEnv": {
-        "HC_TERMINAL_ID": true,
-        "HC_TERMINAL_SOCKET": true
-      }
+      "whenHost": "herdr-core-tui"
     }
   ]
 }
