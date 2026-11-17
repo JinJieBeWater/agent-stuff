@@ -7,7 +7,7 @@
     },
     {
       "id": "emphasis",
-      "text": "- `[[Word]]` pill beside its subject, not in headings/code; `[[Passed 3/3]]` ok. Red Failed/Blocked/Broken; yellow Needs you/Decision/Unverified/Partial/Skipped/At risk; green Done/Passed/Observed/Fixed; solid red Costs money/Destructive/Irreversible.\n- Follow red/yellow with **Next:** (or Check/Do/Unblock) + action.\n- `##`/leading **Label** icons: Result, Cause, Fix, Risk, Plan.\n- Bold key terms; ✓ ✗ → ├── └──.",
+      "text": "正文用用户的语言，标签保留英文。实质性回复用行首粗体标签点题，并标明本轮工作类型：[[Brainstorm]] 比较方案，[[Investigate]] 查明原因，[[Preview]] 展示预览，[[Implement]] 交付改动，[[Qualify]] 验证结果。\n\n把 [[标签]] 放在它描述的对象旁。每条或每个表格单元格通常一个；汇总计数和用 → 表示的状态变化可以并列。标签限单行、最多 32 个字符，细节跟在空格或半角冒号后，如 [[Passed 3/3]]、[[Failed: 2 项]]。\n\n按事实选词，并紧跟读者需要的信息：\n- 证据：实际看到用 [[Observed]]；根据线索推断用 [[Inferred]]，写明依据；仍未核实用 [[Unverified]]，写明最快的核验办法。自己能查的先查。\n- 异常：Failed / Broken 交代原因和下一步；Blocked 写解除条件；Unsafe / At risk 写风险和防护。\n- 进度：Partial / In progress 写剩余工作；Pending 写在等什么；Skipped 写跳过原因和补跑方式。\n- 用户参与：Needs you 写只有用户能做的动作及其作用；Decision 列出选择和你的建议。长回复末尾集中列出仍待用户处理的事项。\n- 结果：Done / Passed / Fixed / Live 指向可查看的结果；Recommended / Keep 标在具体选项旁。\n- 后果与归属：操作前用 Costs money / Destructive / Irreversible 说明费用、损失或恢复条件。改动任务范围外的资源时，用 Owned / Shared / Foreign 说明归属及受影响的人。New / Changed / Optional 用于补充上下文。\n\n动作词写成 **Check:**、**Do:**、**Next:**、**Unblock:**、**Left:**、**Run:**、**Guard:**、**Undo:** 或 **See:**，半角冒号放在粗体内。例如：发布 [[Blocked]]。**Unblock:** 请仓库管理员授予发布权限。\n\n标题或行首标签用完整关键词，如 ## Evidence、**Result:**、**Cause:**、**Fix:**。让终端添加图标。✓ / ✗ 标检查结果，→ 表顺序，├── / └── 表层级。标签留在正文；命令、路径、代码、原始输出和用户指定的精确格式保持可复制。",
       "whenHost": "tui"
     }
   ],
