@@ -19,7 +19,7 @@ type Context = Pick<ExtensionContext, "cwd" | "sessionManager" | "hasPendingMess
   ui: Pick<ExtensionContext["ui"], "getEditorText">;
 };
 export type MoveRecord = {
-  backend: MoveRuntime["kind"];
+  backend: "core";
   directory: string;
   cwd: string;
   sourcePid: number;
@@ -134,8 +134,8 @@ export async function relocate(
   let targetPane: string | undefined;
   try {
     const copy = await snapshotSession(ctx.sessionManager, cwd);
-    const record = {
-      backend: runtime.kind,
+    const record: MoveRecord = {
+      backend: "core",
       directory,
       cwd,
       sourcePid: options.sourcePid,

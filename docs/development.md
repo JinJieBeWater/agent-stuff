@@ -74,7 +74,7 @@ pi remove ./packages/pi-drop-session
 
 ## 兼容基线
 
-当前运行接口以 Node 宿主和 Pi SDK 1.4 为验证基线，Herdr 相关扩展以旧 TUI 0.9.5、Core 0.1.15 和 App 0.1.10 的原生接口验证。SDK 的确切版本见根 `devDependencies`；这些验证不代表兼容 Bun 编译版 Pi，或所有历史、未来版本。
+当前运行接口以 Node 宿主和 Pi SDK 1.4 为验证基线，Herdr 相关扩展以Core 0.1.15 和 App 0.1.10 的原生接口验证。SDK 的确切版本见根 `devDependencies`；这些验证不代表兼容 Bun 编译版 Pi，或所有历史、未来版本。
 
 - 无框表格依赖 Pi 原生表格布局，无法识别的布局会回退原生显示。
 - `/drop` 的命令查找面向 macOS/Linux，不支持 Windows，也未验证该平台。

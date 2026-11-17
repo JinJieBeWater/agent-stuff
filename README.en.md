@@ -12,7 +12,7 @@ My [Pi](https://github.com/earendil-works/pi) extensions, custom Skills, and per
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [pi-borderless-tables](packages/pi-borderless-tables/README.en.md)   | Display aligned tables without borders                                              |
 | [pi-herdr-session-move](packages/pi-herdr-session-move/README.en.md) | Move the current Pi conversation to another existing directory                      |
-| [pi-herdr-tab-title](packages/pi-herdr-tab-title/README.en.md)       | Sync Pi tab names in Herdr Core/App and the legacy TUI                              |
+| [pi-herdr-tab-title](packages/pi-herdr-tab-title/README.en.md)       | Sync Pi tab names in Herdr Core/App                                                 |
 | [pi-herdr-theme](packages/pi-herdr-theme/README.en.md)               | Make Pi follow the Herdr App theme, palette included                                |
 | [pi-auto-session-title](packages/pi-auto-session-title/README.en.md) | Maintain session titles with language selection, custom prompts, and model fallback |
 | [pi-drop-session](packages/pi-drop-session/README.en.md)             | Start a new session and send the previous session file to the trash                 |
@@ -59,8 +59,8 @@ Omitting `extensions` or `skills` loads all entries of that type; `[]` disables 
 
 ## Configuration
 
-- [Session move](packages/pi-herdr-session-move/README.en.md): supports Herdr Core and the legacy TUI through their respective native runtime interfaces.
-- [Tab titles](packages/pi-herdr-tab-title/README.en.md): Core requires a Herdr App connected to the terminal; the legacy TUI uses its own socket.
+- [Session move](packages/pi-herdr-session-move/README.en.md): uses `hc` to move a conversation in an interactive Herdr Core terminal.
+- [Tab titles](packages/pi-herdr-tab-title/README.en.md): sync the Pi session name to the Herdr App tab connected to its Core terminal.
 - [Automatic titles](packages/pi-auto-session-title/README.en.md): continues to read `auto-session-title.json`. Disable the extension with the same name in other packages before enabling it.
 - [`/drop`](packages/pi-drop-session/README.en.md): requires a trusted trash command; by default it looks for `trash` on `PATH`.
 - [Skill discovery](packages/pi-skill-discovery/README.en.md): the core list is empty by default, so all Skills eligible for automatic invocation are found on demand. Native `/skill:name` commands still work.

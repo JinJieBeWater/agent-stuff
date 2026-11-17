@@ -1,6 +1,6 @@
 # pi-herdr-theme
 
-Makes Pi's colors follow the Herdr App theme, including its 16-color palette.
+Makes interactive Pi terminals verified by Herdr Core follow the Herdr App theme, including its 16-color palette. Theme generation, initial synchronization, and file watching require that verification.
 
 Inside Herdr, Pi's `system` theme asks Herdr Core for colors. Herdr App tells Core its foreground, background and cursor colors but not its 16-color palette, so Core answers palette queries with its own defaults and hues drift. This extension reads the colors Herdr App actually draws with (what the theme file sets, plus what Herdr derives for the rest) and generates `~/.pi/agent/themes/herdr.json` with the same algorithm Pi uses for `system`. When a theme file has terminal colors only, Pi and Herdr still share one accent, grey and selection.
 

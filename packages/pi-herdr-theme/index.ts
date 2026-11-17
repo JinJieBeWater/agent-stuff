@@ -11,6 +11,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isHerdrCoreTui } from "../../lib/herdr-core.ts";
 
 type Rgb = { r: number; g: number; b: number };
 type Generate = (input: {
@@ -143,6 +144,7 @@ export function sync(
 }
 
 export default async function herdrTheme(pi: ExtensionAPI): Promise<void> {
+  if (!(await isHerdrCoreTui(pi))) return;
   const generate = await loadGenerator();
   // Before the session too: Pi loads its theme first, so a fresh start draws the current colors.
   try {
@@ -152,6 +154,7 @@ export default async function herdrTheme(pi: ExtensionAPI): Promise<void> {
   }
   let watcher: FSWatcher | undefined;
   pi.on("session_start", (_event, ctx) => {
+    if (ctx.mode !== "tui") return;
     let lastProblem: string | undefined;
     const warn = (problem: string) => {
       if (problem !== lastProblem) ctx.ui.notify(`Herdr theme not updated: ${problem}`, "warning");

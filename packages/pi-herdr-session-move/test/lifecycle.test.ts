@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   createAgentSession,
+  type ExtensionAPI,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
@@ -15,13 +16,7 @@ import { marker, readJson } from "../move.ts";
 
 const cleanups: (() => Promise<void>)[] = [];
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR;
-const runtimeEnv = [
-  "HERDR_ENV",
-  "HERDR_PANE_ID",
-  "HERDR_SOCKET_PATH",
-  "HC_TERMINAL_ID",
-  "HC_TERMINAL_SOCKET",
-];
+const runtimeEnv = ["HC_TERMINAL_ID", "HC_TERMINAL_SOCKET"];
 const originalRuntimeEnv = Object.fromEntries(runtimeEnv.map((key) => [key, process.env[key]]));
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
@@ -37,6 +32,25 @@ async function temp() {
   cleanups.push(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
+
+test("non-interactive Pi does not register session move even with inherited Core markers", async () => {
+  process.env.HC_TERMINAL_ID = "t1";
+  process.env.HC_TERMINAL_SOCKET = "/fixture/core.sock";
+  const registered: string[] = [];
+  const collect = () => registered.push("registered");
+  process.argv.push("--mode", "rpc");
+  try {
+    await sessionMove({
+      registerFlag: collect,
+      registerCommand: collect,
+      registerTool: collect,
+      on: collect,
+    } as unknown as ExtensionAPI);
+    expect(registered).toEqual([]);
+  } finally {
+    process.argv.splice(-2);
+  }
+});
 
 test("marker publication is atomic for concurrent readers and never overwrites", async () => {
   const dir = await temp();
@@ -66,18 +80,11 @@ test("concurrent marker readers never observe an empty publication", async () =>
     );
 });
 
-async function receiverFixture(backend: "tui" | "core" = "tui") {
+async function receiverFixture() {
   const root = await temp();
   process.env.PI_CODING_AGENT_DIR = root;
-  for (const key of runtimeEnv) delete process.env[key];
-  if (backend === "core") {
-    process.env.HC_TERMINAL_ID = "t2";
-    process.env.HC_TERMINAL_SOCKET = "/fixture/core.sock";
-  } else {
-    process.env.HERDR_ENV = "1";
-    process.env.HERDR_PANE_ID = "w2:p1";
-    process.env.HERDR_SOCKET_PATH = "/fixture/herdr.sock";
-  }
+  process.env.HC_TERMINAL_ID = "t2";
+  process.env.HC_TERMINAL_SOCKET = "/fixture/core.sock";
   const directory = join(root, "session-moves", "move-fixture");
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const manager = SessionManager.create(root, join(root, "sessions"));
@@ -88,14 +95,14 @@ async function receiverFixture(backend: "tui" | "core" = "tui") {
   });
   manager.appendMessage({ role: "user", content: "preserved context", timestamp: 2 });
   const record = {
-    backend,
+    backend: "core",
     directory,
     cwd: root,
     sourcePid: 2_000_000_000,
-    sourcePane: backend === "core" ? "t1" : "w1:p1",
+    sourcePane: "t1",
     sourceSessionId: "source",
     sourceSessionFile: join(root, "source.jsonl"),
-    targetPane: backend === "core" ? "t2" : "w2:p1",
+    targetPane: "t2",
     targetSessionId: manager.getSessionId(),
     targetSessionFile: manager.getSessionFile(),
     resume: true,
@@ -114,22 +121,18 @@ async function receiverFixture(backend: "tui" | "core" = "tui") {
     noContextFiles: true,
     noPromptTemplates: true,
     extensionFactories: [
-      (pi) => {
+      async (pi) => {
         pi.exec = async () => ({
           code: 0,
           killed: false,
           truncated: false,
           stderr: "",
-          stdout: JSON.stringify(
-            backend === "core"
-              ? { address: record.targetPane, state: "live" }
-              : { result: { pane: { pane_id: record.targetPane } } },
-          ),
+          stdout: JSON.stringify({ address: record.targetPane, state: "live" }),
         });
         pi.sendUserMessage = () => {
           resumed = true;
         };
-        sessionMove(pi);
+        await sessionMove(pi, async () => true);
       },
     ],
   });
@@ -181,34 +184,29 @@ async function receiverFixture(backend: "tui" | "core" = "tui") {
   };
 }
 
-for (const backend of ["tui", "core"] as const) {
-  test(
-    backend + ": real Pi rejects tree navigation, switching and forking while receiving",
-    async () => {
-      const f = await receiverFixture(backend);
-      const leaf = f.manager.getLeafId();
-      expect((await f.session.navigateTree(f.first, { summarize: false })).cancelled).toBe(true);
-      expect(
-        (await f.session.extensionRunner.emit({ type: "session_before_switch", reason: "new" }))
-          ?.cancel,
-      ).toBe(true);
-      expect(
-        (
-          await f.session.extensionRunner.emit({
-            type: "session_before_fork",
-            entryId: f.first,
-            position: "at",
-          })
-        )?.cancel,
-      ).toBe(true);
-      expect(f.manager.getLeafId()).toBe(leaf);
-      await marker(f.directory, "committed", { pid: process.pid });
-      for (let i = 0; i < 30 && !f.resumed; i++) await delay(10);
-      expect(f.resumed).toBe(true);
-      expect(f.manager.buildSessionContext().messages.length).toBe(2);
-    },
-  );
-}
+test("real Pi rejects tree navigation, switching and forking while receiving", async () => {
+  const f = await receiverFixture();
+  const leaf = f.manager.getLeafId();
+  expect((await f.session.navigateTree(f.first, { summarize: false })).cancelled).toBe(true);
+  expect(
+    (await f.session.extensionRunner.emit({ type: "session_before_switch", reason: "new" }))
+      ?.cancel,
+  ).toBe(true);
+  expect(
+    (
+      await f.session.extensionRunner.emit({
+        type: "session_before_fork",
+        entryId: f.first,
+        position: "at",
+      })
+    )?.cancel,
+  ).toBe(true);
+  expect(f.manager.getLeafId()).toBe(leaf);
+  await marker(f.directory, "committed", { pid: process.pid });
+  for (let i = 0; i < 30 && !f.resumed; i++) await delay(10);
+  expect(f.resumed).toBe(true);
+  expect(f.manager.buildSessionContext().messages.length).toBe(2);
+});
 
 test("out-of-band target branch drift refuses continuation and completion", async () => {
   const f = await receiverFixture();

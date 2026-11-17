@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "vite-plus/test";
+import { afterAll, afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,28 @@ process.env.PI_CODING_AGENT_DIR = join(home, "agent");
 if (homedir() !== home || getAgentDir() !== join(home, "agent")) throw new Error("not isolated");
 const { default: herdrTheme } = await import("../index");
 afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+const streams = [process.stdin, process.stdout];
+const ttyDescriptors = streams.map((stream) => Object.getOwnPropertyDescriptor(stream, "isTTY"));
+let argv: string[];
+beforeEach(() => {
+  argv = process.argv;
+  process.argv = argv.slice(0, 2);
+  for (const stream of streams) {
+    Object.defineProperty(stream, "isTTY", { configurable: true, value: true });
+  }
+  vi.stubEnv("HC_TERMINAL_ID", "t23");
+  vi.stubEnv("HC_TERMINAL_SOCKET", "/fixture/core.sock");
+});
+afterEach(() => {
+  process.argv = argv;
+  vi.unstubAllEnvs();
+  for (const [index, stream] of streams.entries()) {
+    const descriptor = ttyDescriptors[index];
+    if (descriptor) Object.defineProperty(stream, "isTTY", descriptor);
+    else Reflect.deleteProperty(stream, "isTTY");
+  }
+});
 
 const exportFile = join(home, ".cache", "herdr-app-theme.json");
 const themeFile = join(home, "agent", "themes", "herdr.json");
@@ -40,6 +62,13 @@ test("工厂只同步一次，会话期间才监听，错误提示一次，关�
   const handlers = new Map<string, (event: unknown, ctx: unknown) => void>();
   await herdrTheme({
     on: (name: string, fn: never) => handlers.set(name, fn),
+    exec: async () => ({
+      code: 0,
+      killed: false,
+      truncated: false,
+      stdout: JSON.stringify({ address: "t23", state: "live", foreground: { pid: process.pid } }),
+      stderr: "",
+    }),
   } as unknown as ExtensionAPI);
   const atFactory = panel();
 
@@ -49,7 +78,7 @@ test("工厂只同步一次，会话期间才监听，错误提示一次，关�
   expect(panel()).toBe(atFactory);
 
   const notes: string[] = [];
-  const ctx = { ui: { notify: (message: string) => notes.push(message) } };
+  const ctx = { mode: "tui", ui: { notify: (message: string) => notes.push(message) } };
   handlers.get("session_start")!({}, ctx);
   const atStart = panel();
   expect(atStart).not.toBe(atFactory);
@@ -79,4 +108,17 @@ test("工厂只同步一次，会话期间才监听，错误提示一次，关�
   publishColors("#909090");
   await sleep(300);
   expect(panel()).toBe(closed);
+});
+
+test("Pi RPC never writes the Herdr theme or installs watchers", async () => {
+  process.argv.push("--mode", "rpc");
+  rmSync(themeFile, { force: true });
+  mkdirSync(join(home, ".cache"), { recursive: true });
+  publishColors("#101010");
+  const handlers = new Map<string, unknown>();
+  await herdrTheme({
+    on: (name: string, fn: unknown) => handlers.set(name, fn),
+  } as unknown as ExtensionAPI);
+  expect(() => readFileSync(themeFile, "utf8")).toThrow(/ENOENT/);
+  expect(handlers.size).toBe(0);
 });

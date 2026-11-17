@@ -8,7 +8,7 @@ Moves the current Pi conversation to an existing directory on the same machine. 
 
 Installed with the [repository Git package](../../README.en.md#installation), with `packages/pi-herdr-session-move/index.ts` as its entry point. Disable it individually with `pi config`; see the repository instructions for updates and removal.
 
-Herdr Core (`hc`) or legacy Herdr TUI (`herdr`) must be installed separately. Core's `HC_TERMINAL_SOCKET` takes priority and requires a complete `HC_TERMINAL_ID`. Legacy TUI uses `HERDR_ENV=1`, `HERDR_PANE_ID`, and `HERDR_SOCKET_PATH`. See the [compatibility baseline](../../docs/development.en.md#compatibility-baseline) for supported versions.
+Install Herdr Core (`hc`) separately. The extension registers its command and tool in interactive Pi sessions owned by Core terminals. See the [compatibility baseline](../../docs/development.en.md#compatibility-baseline) for supported versions.
 
 ## Usage
 
@@ -22,9 +22,11 @@ For errors, timeouts, trust-blocked startup, or notifications that disagree with
 
 - Moves the persisted conversation, preserving the currently selected tree branch, other branches, and provenance. The original session file stays in place.
 - TS notebooks, extension memory, temporary CLI flags, and background processes do not move with the session. The target project uses its own configuration and trust settings.
-- Each move uses a dedicated target location and handles only the current Pi. Code, Git branches, worktrees, and the source directory stay unchanged. Legacy TUI creates a workspace/pane without taking focus. Core creates a terminal that can survive independently, carrying new space/tab labels for an App connected to that Core; moving also works without the App running.
+- Each move uses a dedicated target location and handles only the current Pi. Code, Git branches, worktrees, and the source directory stay unchanged. Core creates a terminal that can survive independently, carrying new space/tab labels for an App connected to that Core; moving also works without the App running.
 - The Core target waits for the source to publish a private handoff record containing the exact terminal address. The source Pi may exit only after the session and target process are confirmed. The target is not cleaned up when the source exits.
-- The source terminal is retained. In legacy TUI, a shell remains after the original Pi exits. In Core, if Pi is the terminal's main process, a finished terminal record remains. Automatically closing the source terminal would still leave a window in which a new program could be closed by mistake.
+- The source terminal is retained. If Pi is the terminal's main process, a finished terminal record remains. Automatically closing the source terminal would still leave a window in which a new program could be closed by mistake.
+
+Core must report Pi itself as the foreground PID before a move can start. If a shell wrapper keeps the foreground PID, use `exec pi` in the wrapper or start Pi directly in an interactive Core shell.
 
 ## Development
 

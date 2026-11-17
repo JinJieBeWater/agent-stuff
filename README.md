@@ -12,7 +12,7 @@
 | ------------------------------------------------------- | ------------------------------------------------------ |
 | [pi-borderless-tables](packages/pi-borderless-tables)   | 无框对齐表格                                           |
 | [pi-herdr-session-move](packages/pi-herdr-session-move) | 把当前 Pi 对话转到另一个已有目录                       |
-| [pi-herdr-tab-title](packages/pi-herdr-tab-title)       | 在 Herdr Core/App 和旧 TUI 中同步 Pi 标签页名称        |
+| [pi-herdr-tab-title](packages/pi-herdr-tab-title)       | 在 Herdr Core/App 中同步 Pi 标签页名称                 |
 | [pi-herdr-theme](packages/pi-herdr-theme)               | 让 Pi 配色跟着 Herdr App 主题走，含调色板              |
 | [pi-auto-session-title](packages/pi-auto-session-title) | 自动维护会话标题，支持用户语言、自定义提示词和模型回退 |
 | [pi-drop-session](packages/pi-drop-session)             | 新建会话后，将旧会话文件送到废纸篓                     |
@@ -59,8 +59,8 @@ pi config
 
 ## 配置
 
-- [会话搬迁](packages/pi-herdr-session-move/README.md#使用)：支持 Herdr Core 与旧 TUI，各自使用原生运行接口。
-- [标签页名称](packages/pi-herdr-tab-title/README.md)：Core 需有连接该终端的 Herdr App；旧 TUI 使用自身 socket。
+- [会话搬迁](packages/pi-herdr-session-move/README.md#使用)：在 Herdr Core 交互终端中通过 `hc` 搬迁。
+- [标签页名称](packages/pi-herdr-tab-title/README.md)：将 Pi 会话名称同步到连接该 Core 终端的 Herdr App 标签页。
 - [自动标题](packages/pi-auto-session-title/README.md)：继续读取 `auto-session-title.json`；启用前停用其他包中的同名扩展，避免重复生成。
 - [`/drop`](packages/pi-drop-session/README.md#使用)：需要可信的回收站命令，默认从 `PATH` 查找 `trash`。
 - [Skill 发现](packages/pi-skill-discovery/README.md#配置)：默认核心名单为空，所有可自动调用的 Skills 都按需查找；原生 `/skill:name` 仍可用。

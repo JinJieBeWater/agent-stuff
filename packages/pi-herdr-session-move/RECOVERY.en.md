@@ -8,9 +8,9 @@ Preserve both sessions, drafts, and records first, then choose exactly one side 
 
 ## 1. Locate the move record
 
-Get the record directory from the error. The default location is `$PI_CODING_AGENT_DIR/session-moves/`, or `~/.pi/agent/session-moves/` when that variable is unset. Read `move.json` and note `backend`, `sourcePane`, `sourcePid`, `sourceSessionFile`, `targetPane`, `targetSessionFile`, and the target `cwd`. `sourcePane` / `targetPane` store `t…` addresses in Core and pane IDs in legacy TUI.
+Get the record directory from the error. The default location is `$PI_CODING_AGENT_DIR/session-moves/`, or `~/.pi/agent/session-moves/` when that variable is unset. Read `move.json` and note `backend`, `sourcePane`, `sourcePid`, `sourceSessionFile`, `targetPane`, `targetSessionFile`, and the target `cwd`. `sourcePane` / `targetPane` store Core’s `t…` addresses.
 
-These identities must match this request. If `move.json` is missing or damaged, or you cannot identify the request, stay at the source. In Core, use `hc ls` to check terminals that may have been created; in legacy TUI, check the workspace/pane. Core may be interrupted between starting the target and publishing the record; in that case, the target will not automatically resume. If still unsure, report the record path and original error, and stop automatic retries.
+These identities must match this request. If `move.json` is missing or damaged, or you cannot identify the request, stay at the source. Use `hc ls` to check terminals that may have been created. Core may be interrupted between starting the target and publishing the record; in that case, the target will not automatically resume. If still unsure, report the record path and original error, and stop automatic retries.
 
 ## 2. Compare the record with the actual state
 
@@ -21,7 +21,7 @@ These identities must match this request. If `move.json` is missing or damaged, 
 | `completed.json` | The receiver passed source-PID exit and context checks; later checks may still block automatic continuation    |
 | `cancelled.json` | This handoff was cancelled; it can coexist with `committed.json`, in which case treat the handoff as cancelled |
 
-Check the actual state using the runtime named in the record. In Core, use `hc get <terminal>` to inspect both addresses, live/finished state, `foreground.pid`, and cwd. In legacy TUI, use `herdr agent get` and `herdr pane process-info`. Also check whether the original `sourcePid` still exists. If a terminal's program or PID has changed, preserve the new occupant as an unrelated process. Markers cannot replace current identity checks.
+Use `hc get <terminal>` to check both addresses, live/finished state, `foreground.pid`, and cwd. Also check whether the original `sourcePid` still exists. If a terminal's program or PID has changed, preserve the new occupant as an unrelated process. Markers cannot replace current identity checks.
 
 Classify each side as “this Pi is still running,” “this Pi has exited,” or “cannot confirm.” If either side cannot be confirmed, stop at diagnosis without starting another copy of the task.
 

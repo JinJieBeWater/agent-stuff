@@ -87,30 +87,31 @@ test("snapshot retains the selected leaf, other branches, provenance, and source
   expect(await readFile(source, "utf8")).toBe(before);
 });
 
-function tuiRuntime(run: (args: string[]) => Promise<any>, caller = "w1:p1") {
+function coreRuntime(caller: string) {
   return createRuntime(
     async (command, args) => {
-      expect(command).toBe("herdr");
+      expect(command).toBe("hc");
+      expect(args).toEqual(["get", caller, "--json"]);
       return {
         code: 0,
         killed: false,
         truncated: false,
         stderr: "",
-        stdout: JSON.stringify({ result: await run(args) }),
+        stdout: JSON.stringify({ address: caller, state: "live" }),
       };
     },
     "/",
-    { HERDR_ENV: "1", HERDR_PANE_ID: caller, HERDR_SOCKET_PATH: "/fixture/herdr.sock" },
+    { HC_TERMINAL_ID: caller, HC_TERMINAL_SOCKET: "/fixture/core.sock" },
   )!;
 }
 
-async function fakeTransfer(mode = "ready", backend: MoveRuntime["kind"] = "tui") {
+async function fakeTransfer(mode = "ready") {
   const f = await fixture();
   const calls: string[][] = [];
   const controller = new AbortController();
   let record: any;
-  const source = backend === "core" ? "t1" : "w1:p1";
-  const target = backend === "core" ? "t2" : "w2:p1";
+  const source = "t1";
+  const target = "t2";
   const acknowledge = async (args: string[]) => {
     const path = args[args.indexOf("--session-move-handoff") + 1]!;
     record = JSON.parse(await readFile(path, "utf8"));
@@ -139,41 +140,19 @@ async function fakeTransfer(mode = "ready", backend: MoveRuntime["kind"] = "tui"
       });
     if (mode === "aborted-after-start") controller.abort();
   };
-  const run = async (args: string[]): Promise<any> => {
-    calls.push(args);
-    if (args[0] === "pane" && args[1] === "current") return { pane: { pane_id: source } };
-    if (args[0] === "pane" && args[1] === "process-info")
-      return {
-        process_info: {
-          shell_pid: 100,
-          foreground_process_group_id: 100,
-          foreground_processes: [{ pid: args.includes(target) ? 300 : 200 }],
-        },
-      };
-    if (args[0] === "workspace" && args[1] === "create") return { root_pane: { pane_id: target } };
-    if (args[0] === "agent" && args[1] === "start") {
+  const runtime: MoveRuntime = {
+    async current() {
+      return source;
+    },
+    async verify(terminal, pid) {
+      if (pid !== (terminal === source ? 200 : 300)) throw new Error("wrong process");
+    },
+    async launch(_agentDir, args, bind) {
+      calls.push(args);
+      await bind(target);
       await acknowledge(args);
-      return {};
-    }
-    throw new Error("Unexpected Herdr call " + args.join(" "));
+    },
   };
-  const runtime: MoveRuntime =
-    backend === "tui"
-      ? tuiRuntime(run)
-      : {
-          kind: "core",
-          async current() {
-            return source;
-          },
-          async verify(_terminal, pid) {
-            if (![200, 300].includes(pid)) throw new Error("wrong process");
-          },
-          async launch(_agentDir, args, bind) {
-            calls.push(args);
-            await bind(target);
-            await acknowledge(args);
-          },
-        };
   const execute = () =>
     relocate(f.ctx, f.target, {
       runtime,
@@ -197,6 +176,7 @@ async function fakeTransfer(mode = "ready", backend: MoveRuntime["kind"] = "tui"
 test("successful transfer requires an ACK and preserves source; no Git or focus calls", async () => {
   const f = await fakeTransfer();
   const record = await f.execute();
+  expect(record.backend).toBe("core");
   expect(JSON.parse(await readFile(join(record.directory, "committed.json"), "utf8")).pid).toBe(
     300,
   );
@@ -206,49 +186,36 @@ test("successful transfer requires an ACK and preserves source; no Git or focus 
   ).toBe(false);
 });
 
-for (const backend of ["tui", "core"] as const) {
-  test(backend + ": background extension state does not cancel a transfer", async () => {
-    const f = await fakeTransfer("extension-state", backend);
-    const record = await f.execute();
-    expect(await readFile(join(record.directory, "committed.json"), "utf8")).toBeTruthy();
-  });
-  test(backend + ": transfer commits only after target identity and acknowledgment", async () => {
-    const f = await fakeTransfer("ready", backend);
-    const record = await f.execute();
-    expect(record.backend).toBe(backend);
-    expect(JSON.parse(await readFile(join(record.directory, "committed.json"), "utf8")).pid).toBe(
-      300,
-    );
-  });
-  for (const mode of [
-    "no-ack",
-    "wrong-pid",
-    "ambiguous",
-    "changed-source",
-    "custom-message",
-    "context-edit",
-    "model-change",
-    "compaction",
-    "branch-change",
-    "new-draft",
-    "aborted-after-start",
-  ]) {
-    test(
-      backend +
-        " " +
-        mode +
-        ": source stays available; replacement files retained, no commit or close",
-      async () => {
-        const f = await fakeTransfer(mode, backend);
-        await expect(f.execute()).rejects.toThrow();
-        expect(await readFile(f.record.sourceSessionFile, "utf8")).toContain("selected branch");
-        expect(await readFile(f.record.targetSessionFile, "utf8")).toContain("selected branch");
-        expect(await readFile(join(f.record.directory, "cancelled.json"), "utf8")).toBeTruthy();
-        await expect(readFile(join(f.record.directory, "committed.json"))).rejects.toThrow();
-        expect(f.calls.some((c) => c.includes("close"))).toBe(false);
-      },
-    );
-  }
+test("background extension state does not cancel a transfer", async () => {
+  const f = await fakeTransfer("extension-state");
+  const record = await f.execute();
+  expect(await readFile(join(record.directory, "committed.json"), "utf8")).toBeTruthy();
+});
+for (const mode of [
+  "no-ack",
+  "wrong-pid",
+  "ambiguous",
+  "changed-source",
+  "custom-message",
+  "context-edit",
+  "model-change",
+  "compaction",
+  "branch-change",
+  "new-draft",
+  "aborted-after-start",
+]) {
+  test(
+    mode + ": source stays available; replacement files retained, no commit or close",
+    async () => {
+      const f = await fakeTransfer(mode);
+      await expect(f.execute()).rejects.toThrow();
+      expect(await readFile(f.record.sourceSessionFile, "utf8")).toContain("selected branch");
+      expect(await readFile(f.record.targetSessionFile, "utf8")).toContain("selected branch");
+      expect(await readFile(join(f.record.directory, "cancelled.json"), "utf8")).toBeTruthy();
+      await expect(readFile(join(f.record.directory, "committed.json"))).rejects.toThrow();
+      expect(f.calls.some((c) => c.includes("close"))).toBe(false);
+    },
+  );
 }
 
 test("cancellation keeps both session files and never commits", async () => {
@@ -284,10 +251,7 @@ test("receiver checks private record, cwd, session and actual pane before acknow
   const targetSession = SessionManager.open(record.targetSessionFile);
   const ctx = { cwd: record.cwd, sessionManager: targetSession };
   const handoff = join(record.directory, "move.json");
-  const runtime = tuiRuntime(
-    async () => ({ pane: { pane_id: record.targetPane } }),
-    record.targetPane,
-  );
+  const runtime = coreRuntime(record.targetPane);
   expect(await acceptHandoff(ctx, handoff, f.dir, runtime, 300)).toEqual(record);
   await expect(acceptHandoff(ctx, handoff, f.dir, runtime, 301)).rejects.toThrow(
     "different process",

@@ -49,7 +49,7 @@ export async function acceptHandoff(
   const record = await readJson<MoveRecord>(file);
   if (
     !record ||
-    record.backend !== runtime.kind ||
+    record.backend !== "core" ||
     record.directory !== directory ||
     !isAbsolute(record.sourceSessionFile) ||
     !Number.isSafeInteger(record.sourcePid) ||

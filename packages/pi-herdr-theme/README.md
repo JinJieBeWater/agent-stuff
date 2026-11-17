@@ -1,6 +1,6 @@
 # pi-herdr-theme
 
-让 Pi 的配色跟着 Herdr App 的主题走，包括 16 色调色板。
+让经 Herdr Core 核验的交互式 Pi 终端跟随 Herdr App 的主题，包括 16 色调色板。主题生成、首次同步和文件监听均在核验通过后启用。
 
 在 Herdr 里，Pi 的 `system` 主题从 Herdr Core 取色。Herdr App 会把前景、背景和光标色告诉 Core，但不传 16 色调色板，Core 对调色板查询回答的是自己的默认值，所以色相会偏。本扩展读取 Herdr App 画界面实际用的那组颜色（主题文件里写的，加上 Herdr 替没写的推算出来的），再用 Pi 生成 `system` 主题的同一套算法生成 `~/.pi/agent/themes/herdr.json`。主题文件只写了终端色时，Pi 和 Herdr 也用同一组强调色、灰字和选中色。
 

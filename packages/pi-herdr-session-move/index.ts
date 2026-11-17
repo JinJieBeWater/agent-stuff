@@ -8,10 +8,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalTarget, conversationLeaf, readJson, relocate } from "./move.ts";
 import { acceptHandoff, finishHandoff } from "./receiver.ts";
+import { isHerdrCoreTui } from "../../lib/herdr-core.ts";
 import { createRuntime } from "./runtime.ts";
 
-export default function sessionMove(pi: ExtensionAPI) {
-  if (!createRuntime(pi.exec, process.cwd())) return;
+export default async function sessionMove(pi: ExtensionAPI, isCoreTui = isHerdrCoreTui) {
+  if (!(await isCoreTui(pi))) return;
   const lifetime = new AbortController();
   let staged: { cwd: string; signal?: AbortSignal } | undefined;
   let moving = false;

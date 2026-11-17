@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { chmod, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
@@ -8,9 +8,8 @@ import { marker } from "../move.ts";
 import { acceptHandoff } from "../receiver.ts";
 
 const core = { HC_TERMINAL_ID: "t1", HC_TERMINAL_SOCKET: "/fixture/core.sock" };
-const tui = { HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1", HERDR_SOCKET_PATH: "/fixture/herdr.sock" };
 
-function host(respond: (args: string[]) => unknown, env = core) {
+function host(respond: (args: string[]) => unknown, env: NodeJS.ProcessEnv = core) {
   const calls: { command: string; args: string[] }[] = [];
   const runtime = createRuntime(
     async (command, args) => {
@@ -29,28 +28,11 @@ function host(respond: (args: string[]) => unknown, env = core) {
   return { runtime, calls };
 }
 
-test("Core takes precedence, and partial Core identity never falls back to an inherited TUI", () => {
-  expect(host(() => ({}), { ...tui, ...core }).runtime?.kind).toBe("core");
-  expect(
-    host(() => ({}), { ...tui, HC_TERMINAL_SOCKET: core.HC_TERMINAL_SOCKET } as any).runtime,
-  ).toBeUndefined();
-  expect(host(() => ({}), {} as any).runtime).toBeUndefined();
-  expect(host(() => ({}), tui as any).runtime?.kind).toBe("tui");
-});
-
-test("TUI resolves a moved caller alias to its live pane and still verifies the Pi PID", async () => {
-  const f = host(
-    (args) => ({
-      result:
-        args[1] === "current"
-          ? { pane: { pane_id: "w2:p2" } }
-          : { process_info: { shell_pid: 10, foreground_processes: [{ pid: 42 }] } },
-    }),
-    tui as any,
-  );
-  expect(await f.runtime!.current()).toBe("w2:p2");
-  await f.runtime!.verify("w2:p2", 42);
-  await expect(f.runtime!.verify("w2:p2", 43)).rejects.toThrow("expected");
+test("runtime requires a Core socket and a local terminal address", () => {
+  expect(host(() => ({}), {}).runtime).toBeUndefined();
+  expect(host(() => ({}), { HC_TERMINAL_SOCKET: core.HC_TERMINAL_SOCKET }).runtime).toBeUndefined();
+  expect(host(() => ({}), { ...core, HC_TERMINAL_ID: "other/t1" }).runtime).toBeUndefined();
+  expect(host(() => ({}), { HC_TERMINAL_ID: core.HC_TERMINAL_ID }).runtime).toBeUndefined();
 });
 
 test("Core validates its address, live state and exact foreground Pi PID", async () => {
@@ -89,7 +71,6 @@ test("Core launch creates an independent terminal, does not submit input and bin
   expect(call.args).toContain("--no-notify");
   expect(call.args[call.args.indexOf("--cwd") + 1]).toBe("/target with spaces ; $");
   expect(call.args).toContain("PI_CODING_AGENT_DIR=/private pi");
-  expect(call.args).toContain("HERDR_ENV");
   expect(call.args).not.toContain("send");
   await expect(
     host(() => ({ address: "other/t2" })).runtime!.launch("/pi", [], async () => {}),
@@ -152,15 +133,11 @@ test("Core receiver waits for the source to publish its private binding, then ch
     );
     await marker(directory, "move", record);
     expect((await accepting).targetPane).toBe("t2");
+    await writeFile(handoff, JSON.stringify({ ...record, backend: "tui" }));
     await expect(
-      acceptHandoff(
-        { cwd: root, sessionManager: manager },
-        handoff,
-        root,
-        { ...runtime, kind: "tui" },
-        456,
-      ),
+      acceptHandoff({ cwd: root, sessionManager: manager }, handoff, root, runtime, 456),
     ).rejects.toThrow("does not match");
+    await writeFile(handoff, JSON.stringify(record));
     await chmod(handoff, 0o644);
     await expect(
       acceptHandoff({ cwd: root, sessionManager: manager }, handoff, root, runtime, 456),
