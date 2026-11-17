@@ -16,6 +16,7 @@
 
 ## 工具与环境
 
+- 在 T3 里发起或收到 Ryugi 异步画板评审时，读取 `~/my/tools/ryugi-t3-watch/agent-rule.md`。
 - 没有合适的标准库或已装依赖时，引入成熟依赖优先于自研。JavaScript 包命令默认 `bunx`，仅用户要求或兼容问题时换 runner。
 - 通用 skill 维护在 `~/.agents/skills`，宿主专属留宿主目录，项目私有留项目目录；镜像用软链，同名同用途只维护一份。
 - GUI 自动化避免干扰用户当前桌面。本机窗口由 OmniWM 平铺，打开或摆放窗口前先读 `~/.agents/skills/omniwm/SKILL.md`。
