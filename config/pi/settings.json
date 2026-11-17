@@ -63,6 +63,7 @@
     "npm:@howaboua/pi-skill-skill-creator",
     {
       "source": "git:github.com/DietrichGebert/ponytail",
+      "extensions": [],
       "skills": ["skills/ponytail-review/SKILL.md"]
     },
     {
