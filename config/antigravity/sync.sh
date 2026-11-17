@@ -60,8 +60,9 @@ if [ -d "$T3_AGY_ROOT" ]; then
     link_force "$AGY_GEMINI" "${profile}/GEMINI.md"
     link_force "$SHARED_AGENTS" "${profile}/config/AGENTS.md"
     link_force "${GEMINI_HOME}/config/skills" "${profile}/config/skills"
-    if [ -f "${GEMINI_HOME}/config/hooks.json" ]; then
-      link_force "${GEMINI_HOME}/config/hooks.json" "${profile}/config/hooks.json"
+    # Keep hooks out: non-empty profile hooks.json disables T3 Antigravity text generation.
+    if [ -L "${profile}/config/hooks.json" ]; then
+      rm -f "${profile}/config/hooks.json"
     fi
     disable_swarm_plugin "${profile}/config/config.json"
   done
