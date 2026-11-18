@@ -1,6 +1,13 @@
 {
-  "disabledPrefixes": ["device_", "t3_theme_", "t3_attachment_"],
   "disabledTools": [
+    "device_close",
+    "device_list",
+    "device_open",
+    "device_screenshot",
+    "t3_theme_read",
+    "t3_theme_set",
+    "t3_attachment_discard",
+    "t3_attachment_prepare_upload",
     "schedule_task",
     "list_scheduled_tasks",
     "delete_scheduled_task",
@@ -14,7 +21,7 @@
     "preview_recording_stop",
     "create_threads"
   ],
-  "directTools": [
+  "eagerTools": [
     "delegate_task",
     "orchestrator_capabilities",
     "task_status",

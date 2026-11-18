@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+for candidate in \
+  "$(command -v node 2>/dev/null || true)" \
+  "/opt/homebrew/bin/node" \
+  "${HOME}/.local/share/mise/shims/node" \
+  "${HOME}/.vite-plus/bin/node"
+do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    exec "$candidate" "${SCRIPT_DIR}/../t3-mcp-shim.mjs" "$@"
+  fi
+done
+echo "t3-mcp-shim: node runtime not found" >&2
+exit 127

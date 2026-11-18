@@ -1,12 +1,25 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { fileURLToPath } from "node:url";
+import { setTimeout as sleep } from "node:timers/promises";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const filterScript = join(here, "t3-mcp-filter.mjs");
+const T3_SERVER_NAME = "t3-code";
+const DEFAULT_AGENT = "lean";
+const SESSION_METHODS = new Set(["session/new", "session/load", "session/resume", "session/fork"]);
+const SHIM_READY_MS = Number(process.env.T3_AGY_MCP_READY_MS ?? 10_000);
+const SHIM_SETTLE_MS = 100;
+const STATE_SUFFIXES = ["", ".tmp", ".shim", ".ready", ".ready.tmp"];
 
 function readSemver(binPath) {
   try {
@@ -58,31 +71,95 @@ function resolveUpstreamBinary() {
   return managedBin;
 }
 
-function wrapMcpServers(mcpServers) {
-  if (!Array.isArray(mcpServers)) return mcpServers;
-  return mcpServers.map((server) => {
-    if (
-      !server ||
-      typeof server !== "object" ||
-      server.name !== "t3-code" ||
-      typeof server.command !== "string"
-    ) {
-      return server;
+// T3 hands its MCP bridge to agy per session, which skips agy's native lazy loading and per-tool
+// config. Pull the stdio entry out and leave its launch spec in a private file; the profile's
+// mcp_config.json starts bin/t3-mcp-shim, which reads that file and runs the real bridge.
+// Returns the servers left for agy and the spec text written, or null when nothing was taken.
+function takeT3Server(mcpServers, statePath) {
+  const index = mcpServers.findIndex(
+    (server) => server?.name === T3_SERVER_NAME && typeof server.command === "string",
+  );
+  if (index === -1) {
+    if (mcpServers.some((server) => server?.name === T3_SERVER_NAME)) {
+      process.stderr.write("antigravity wrapper: non-stdio t3-code MCP server left untrimmed\n");
     }
-    const existingEnv = Array.isArray(server.env) ? server.env : [];
-    const filteredEnv = existingEnv.filter(
-      (entry) => entry?.name !== "T3_ORIG_MCP_COMMAND" && entry?.name !== "T3_ORIG_MCP_ARGS_JSON",
-    );
-    return {
-      ...server,
-      args: [filterScript],
-      env: [
-        ...filteredEnv,
-        { name: "T3_ORIG_MCP_COMMAND", value: server.command },
-        { name: "T3_ORIG_MCP_ARGS_JSON", value: JSON.stringify(server.args ?? []) },
-      ],
-    };
-  });
+    return { mcpServers, written: null };
+  }
+  const server = mcpServers[index];
+  const state = {
+    command: server.command,
+    args: server.args ?? [],
+    env: Object.fromEntries((server.env ?? []).map((entry) => [entry.name, entry.value])),
+  };
+  const written = JSON.stringify(state);
+  const tmp = `${statePath}.tmp`;
+  writeFileSync(tmp, written, { mode: 0o600 });
+  renameSync(tmp, statePath);
+  return { mcpServers: mcpServers.filter((_, i) => i !== index), written };
+}
+
+// agy fixes a session's tools when the session is created, and a shim started at authenticate has
+// no spec yet. While a shim is alive, hold the session request until it reports that agy has T3's
+// catalog for this spec. Without a live shim agy starts it during this request, spec in place.
+async function waitForShim(statePath, written) {
+  if (!existsSync(`${statePath}.shim`)) return;
+  const hash = createHash("sha256").update(written).digest("hex");
+  const isReady = () => {
+    try {
+      return readFileSync(`${statePath}.ready`, "utf8") === hash;
+    } catch {
+      return false;
+    }
+  };
+  if (isReady()) return;
+  const deadline = Date.now() + SHIM_READY_MS;
+  while (!isReady()) {
+    if (Date.now() >= deadline) {
+      process.stderr.write(
+        "antigravity wrapper: t3-code shim not ready; session may lack T3 tools\n",
+      );
+      return;
+    }
+    await sleep(25);
+  }
+  // The shim marks ready as it hands agy the catalog; give agy a moment to take it in.
+  await sleep(SHIM_SETTLE_MS);
+}
+
+// A wrapper that dies without its exit handler leaves a live bearer token behind.
+function removeOrphanedStates(stateDir) {
+  for (const name of readdirSync(stateDir)) {
+    const pid = Number(/^(\d+)\.json(?:\.[a-z.]+)?$/.exec(name)?.[1]);
+    if (!pid || pid === process.pid) continue;
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if (error.code === "ESRCH") rmSync(join(stateDir, name), { force: true });
+    }
+  }
+}
+
+function optionValue(args, name) {
+  const index = args.indexOf(name);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+function acpArgsFor(args) {
+  const out = [...args];
+  if (!out.includes("--disable-telemetry") && !out.includes("--disable_telemetry")) {
+    out.push("--disable-telemetry");
+  }
+  const agent = process.env.AGY_T3_AGENT ?? DEFAULT_AGENT;
+  const geminiDir = optionValue(out, "--gemini-dir");
+  if (
+    agent &&
+    !out.includes("--agent") &&
+    geminiDir &&
+    existsSync(join(geminiDir, "config", "agents", `${agent}.md`))
+  ) {
+    out.push("--agent", agent);
+  }
+  return out;
 }
 
 const args = process.argv.slice(2);
@@ -95,47 +172,62 @@ if (args[0] !== "acp") {
     process.exit(code ?? 0);
   });
 } else {
-  const acpArgs =
-    args.includes("--disable-telemetry") || args.includes("--disable_telemetry")
-      ? args
-      : [...args, "--disable-telemetry"];
-  const child = spawn(upstreamBin, acpArgs, {
+  const stateDir = process.env.T3_AGY_MCP_STATE_DIR || join(tmpdir(), "t3-agy-mcp");
+  mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  removeOrphanedStates(stateDir);
+  const statePath = join(stateDir, `${process.pid}.json`);
+  const removeState = () => {
+    for (const suffix of STATE_SUFFIXES) rmSync(`${statePath}${suffix}`, { force: true });
+  };
+  process.on("exit", removeState);
+
+  const child = spawn(upstreamBin, acpArgsFor(args), {
     stdio: ["pipe", "pipe", "inherit"],
+    env: { ...process.env, T3_AGY_MCP_STATE: statePath },
   });
+  const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"];
+  for (const signal of forwardedSignals) process.on(signal, () => child.kill(signal));
 
   child.stdout.pipe(process.stdout);
 
-  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  rl.on("line", (line) => {
+  const forward = async (line) => {
     if (line.trim()) {
+      let msg = null;
       try {
-        const msg = JSON.parse(line);
-        if (
-          msg &&
-          (msg.method === "session/new" ||
-            msg.method === "session/load" ||
-            msg.method === "session/resume") &&
-          msg.params &&
-          Array.isArray(msg.params.mcpServers)
-        ) {
-          msg.params = {
-            ...msg.params,
-            mcpServers: wrapMcpServers(msg.params.mcpServers),
-          };
-          child.stdin.write(`${JSON.stringify(msg)}\n`);
-          return;
-        }
+        msg = JSON.parse(line);
       } catch {
         // Forward unparsed lines unchanged.
       }
+      if (SESSION_METHODS.has(msg?.method) && Array.isArray(msg.params?.mcpServers)) {
+        let taken = null;
+        try {
+          taken = takeT3Server(msg.params.mcpServers, statePath);
+        } catch (error) {
+          process.stderr.write(`antigravity wrapper: ${error.message}\n`);
+        }
+        if (taken) {
+          if (taken.written) await waitForShim(statePath, taken.written);
+          msg.params = { ...msg.params, mcpServers: taken.mcpServers };
+          child.stdin.write(`${JSON.stringify(msg)}\n`);
+          return;
+        }
+      }
     }
     child.stdin.write(`${line}\n`);
+  };
+  // Lines keep their order while a session request waits for the shim.
+  let queue = Promise.resolve();
+  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  rl.on("line", (line) => {
+    queue = queue.then(() => forward(line));
   });
   rl.on("close", () => {
-    child.stdin.end();
+    queue = queue.then(() => child.stdin.end());
   });
 
   child.on("exit", (code, signal) => {
+    removeState();
+    for (const forwarded of forwardedSignals) process.removeAllListeners(forwarded);
     if (signal) process.kill(process.pid, signal);
     process.exit(code ?? 0);
   });

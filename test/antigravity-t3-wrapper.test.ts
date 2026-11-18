@@ -1,5 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -105,507 +107,430 @@ test("selects the newer semver binary between T3 managed runtime and ~/.local/bi
   }
 });
 
-test("acp mode appends --disable-telemetry, filters unused t3-code MCP tools, and forwards tools/call", async () => {
+const shimPath = join(root, "config", "antigravity", "bin", "t3-mcp-shim");
+
+type Json = Record<string, any>;
+
+function lineClient(command: string, args: string[], env: NodeJS.ProcessEnv) {
+  const child = spawn(command, args, { env, stdio: ["pipe", "pipe", "pipe"] });
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const waiters = new Map<unknown, (msg: Json) => void>();
+  const notifications: Json[] = [];
+  createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", (line) => {
+    if (!line.trim()) return;
+    const msg = JSON.parse(line);
+    if ("id" in msg && waiters.has(msg.id)) {
+      waiters.get(msg.id)!(msg);
+      waiters.delete(msg.id);
+    } else {
+      notifications.push(msg);
+    }
+  });
+  const exited = new Promise<number | null>((resolveExit) => child.on("close", resolveExit));
+  return {
+    child,
+    notifications,
+    exited,
+    stderr: () => stderr,
+    write(msg: Json) {
+      child.stdin.write(`${JSON.stringify(msg)}\n`);
+    },
+    request(msg: Json): Promise<Json> {
+      return new Promise((resolveMsg, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error(`timeout waiting for ${msg.id}; stderr=${stderr}`)),
+          10000,
+        );
+        waiters.set(msg.id, (res) => {
+          clearTimeout(timer);
+          resolveMsg(res);
+        });
+        child.stdin.write(`${JSON.stringify(msg)}\n`);
+      });
+    },
+    close() {
+      child.stdin.end();
+      return exited;
+    },
+  };
+}
+
+async function writeFakeAgy(dir: string) {
+  const fakeAgy = join(dir, "fake-agy");
+  await writeFile(
+    fakeAgy,
+    `#!/usr/bin/env node
+import { readFileSync, statSync } from "node:fs";
+import { createInterface } from "node:readline";
+const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+for await (const line of rl) {
+  if (!line.trim()) continue;
+  const msg = JSON.parse(line);
+  const reply = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+  if (msg.method === "initialize") {
+    reply({ argv: process.argv.slice(2), statePath: process.env.T3_AGY_MCP_STATE ?? null });
+  } else if (msg.method?.startsWith("session/")) {
+    const path = process.env.T3_AGY_MCP_STATE;
+    let state = null, mode = null;
+    try { state = JSON.parse(readFileSync(path, "utf8")); mode = statSync(path).mode & 0o777; } catch {}
+    reply({ mcpServers: msg.params.mcpServers, state, mode });
+  }
+}
+`,
+    "utf8",
+  );
+  await chmod(fakeAgy, 0o755);
+  return fakeAgy;
+}
+
+const specHash = (path: string) =>
+  createHash("sha256").update(readFileSync(path, "utf8")).digest("hex");
+const readyHash = (statePath: string) => {
+  try {
+    return readFileSync(`${statePath}.ready`, "utf8");
+  } catch {
+    return null;
+  }
+};
+const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+async function until(check: () => boolean, what: string) {
+  const deadline = Date.now() + 5000;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await sleep(20);
+  }
+}
+
+const t3Server = (token: string) => ({
+  name: "t3-code",
+  command: "/Applications/T3.app/t3",
+  args: ["bin.mjs", "acp-mcp-bridge"],
+  env: [
+    { name: "ELECTRON_RUN_AS_NODE", value: "1" },
+    { name: "T3_ACP_MCP_ENDPOINT", value: "http://127.0.0.1:1/mcp" },
+    { name: "T3_ACP_MCP_AUTHORIZATION", value: `Bearer ${token}` },
+  ],
+});
+
+test("acp mode adds telemetry and lean agent flags, moves t3-code into a private state file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-acp-"));
   try {
-    const fakeT3Bridge = join(dir, "fake-t3-bridge.mjs");
+    const fakeAgy = await writeFakeAgy(dir);
+    const geminiDir = join(dir, "profile");
+    await mkdir(join(geminiDir, "config", "agents"), { recursive: true });
     await writeFile(
-      fakeT3Bridge,
-      `import { createInterface } from "node:readline";
+      join(geminiDir, "config", "agents", "lean.md"),
+      "---\nname: lean\n---\n",
+      "utf8",
+    );
+    const stateDir = join(dir, "state");
+    await mkdir(stateDir, { recursive: true });
+    const orphan = join(stateDir, "999999.json");
+    await writeFile(orphan, "{}", "utf8");
+    const client = lineClient(wrapperPath, ["acp", "--gemini-dir", geminiDir], {
+      ...process.env,
+      AGY_UPSTREAM_BIN: fakeAgy,
+      T3_AGY_MCP_STATE_DIR: stateDir,
+    });
+
+    const init = await client.request({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    expect(init.result.argv).toEqual([
+      "acp",
+      "--gemini-dir",
+      geminiDir,
+      "--disable-telemetry",
+      "--agent",
+      "lean",
+    ]);
+    const statePath = init.result.statePath;
+    expect(statePath.startsWith(stateDir)).toBe(true);
+    expect(existsSync(orphan)).toBe(false);
+
+    const other = { name: "other", command: "other-mcp", args: [], env: [] };
+    const created = await client.request({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "session/new",
+      params: { cwd: dir, mcpServers: [t3Server("tokA"), other] },
+    });
+    expect(created.result.mcpServers).toEqual([other]);
+    expect(created.result.mode).toBe(0o600);
+    expect(created.result.state).toEqual({
+      command: "/Applications/T3.app/t3",
+      args: ["bin.mjs", "acp-mcp-bridge"],
+      env: {
+        ELECTRON_RUN_AS_NODE: "1",
+        T3_ACP_MCP_ENDPOINT: "http://127.0.0.1:1/mcp",
+        T3_ACP_MCP_AUTHORIZATION: "Bearer tokA",
+      },
+    });
+
+    const forked = await client.request({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "session/fork",
+      params: { sessionId: "s1", cwd: dir, mcpServers: [t3Server("tokB")] },
+    });
+    expect(forked.result.mcpServers).toEqual([]);
+    expect(forked.result.state.env.T3_ACP_MCP_AUTHORIZATION).toBe("Bearer tokB");
+
+    const http = { type: "http", name: "t3-code", url: "http://127.0.0.1:1/mcp", headers: [] };
+    const httpSession = await client.request({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "session/new",
+      params: { cwd: dir, mcpServers: [http] },
+    });
+    expect(httpSession.result.mcpServers).toEqual([http]);
+
+    expect(await client.close()).toBe(0);
+    expect(existsSync(statePath)).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("acp mode leaves the agent alone when lean is missing or an agent is already chosen", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-agent-"));
+  try {
+    const fakeAgy = await writeFakeAgy(dir);
+    const env = { ...process.env, AGY_UPSTREAM_BIN: fakeAgy, T3_AGY_MCP_STATE_DIR: join(dir, "s") };
+    const noLean = lineClient(wrapperPath, ["acp", "--gemini-dir", join(dir, "empty")], env);
+    const a = await noLean.request({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    expect(a.result.argv).toEqual([
+      "acp",
+      "--gemini-dir",
+      join(dir, "empty"),
+      "--disable-telemetry",
+    ]);
+    await noLean.close();
+
+    const geminiDir = join(dir, "profile");
+    await mkdir(join(geminiDir, "config", "agents"), { recursive: true });
+    await writeFile(
+      join(geminiDir, "config", "agents", "lean.md"),
+      "---\nname: lean\n---\n",
+      "utf8",
+    );
+    const chosen = lineClient(
+      wrapperPath,
+      ["acp", "--gemini-dir", geminiDir, "--agent", "other", "--disable-telemetry"],
+      env,
+    );
+    const b = await chosen.request({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    expect(b.result.argv).toEqual([
+      "acp",
+      "--gemini-dir",
+      geminiDir,
+      "--agent",
+      "other",
+      "--disable-telemetry",
+    ]);
+    await chosen.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("acp mode holds session requests until a live shim has T3's catalog for the new spec", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-ready-"));
+  try {
+    const fakeAgy = await writeFakeAgy(dir);
+    const stateDir = join(dir, "state");
+    const client = lineClient(wrapperPath, ["acp"], {
+      ...process.env,
+      AGY_UPSTREAM_BIN: fakeAgy,
+      T3_AGY_MCP_STATE_DIR: stateDir,
+      T3_AGY_MCP_READY_MS: "300",
+    });
+    const init = await client.request({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    const statePath: string = init.result.statePath;
+
+    // No live shim: agy starts it during session/new with the spec already in place.
+    await client.request({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "session/new",
+      params: { cwd: dir, mcpServers: [t3Server("tokA")] },
+    });
+
+    await writeFile(`${statePath}.shim`, "1", "utf8");
+    const replies: unknown[] = [];
+    const held = client
+      .request({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "session/new",
+        params: { cwd: dir, mcpServers: [t3Server("tokB")] },
+      })
+      .then((res) => replies.push(res.id));
+    const after = client
+      .request({ jsonrpc: "2.0", id: 4, method: "initialize", params: {} })
+      .then((res) => replies.push(res.id));
+    await until(
+      () => existsSync(statePath) && readFileSync(statePath, "utf8").includes("tokB"),
+      "spec",
+    );
+    await sleep(100);
+    expect(replies).toEqual([]);
+    await writeFile(`${statePath}.ready`, specHash(statePath), "utf8");
+    await Promise.all([held, after]);
+    expect(replies).toEqual([3, 4]);
+
+    // A shim that never reports ready only delays the session.
+    const started = Date.now();
+    const late = await client.request({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "session/load",
+      params: { sessionId: "s1", cwd: dir, mcpServers: [t3Server("tokC")] },
+    });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+    expect(late.result.state.env.T3_ACP_MCP_AUTHORIZATION).toBe("Bearer tokC");
+    expect(client.stderr()).toContain("t3-code shim not ready");
+
+    expect(await client.close()).toBe(0);
+    for (const suffix of ["", ".shim", ".ready"])
+      expect(existsSync(`${statePath}${suffix}`)).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+async function writeFakeBridge(dir: string) {
+  const bridge = join(dir, "fake-t3-bridge.mjs");
+  await writeFile(
+    bridge,
+    `import { createInterface } from "node:readline";
+let initialized = false;
 const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 for await (const line of rl) {
   if (!line.trim()) continue;
   const msg = JSON.parse(line);
   if (!("id" in msg)) continue;
+  const reply = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
   if (msg.method === "initialize") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "t3-code", version: "1.0" } }
-    }) + "\\n");
+    initialized = true;
+    reply({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "t3-code", version: "1" } });
+  } else if (!initialized) {
+    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32002, message: "not initialized" } }) + "\\n");
   } else if (msg.method === "tools/list") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        tools: [
-          { name: "delegate_task", description: "delegate", inputSchema: { type: "object" } },
-          { name: "html_render", description: "render", inputSchema: { type: "object" } },
-          { name: "t3_project_list", description: "list projects", inputSchema: { type: "object" } },
-          { name: "t3_environment_read", description: "read env", inputSchema: { type: "object" } },
-          { name: "read_pull_request_guide", description: "pr guide", inputSchema: { type: "object" } },
-          { name: "preview_resize", description: "resize tab viewport", inputSchema: { type: "object", properties: { width: { type: "number" } } } },
-          { name: "t3_thread_transfer", description: "transfer thread context", inputSchema: { type: "object" } },
-          { name: "t3_project_delete", description: "delete proj", inputSchema: { type: "object" } },
-          { name: "t3_environment_preferences_update", description: "env prefs", inputSchema: { type: "object" } },
-          { name: "t3_attachment_prepare_upload", description: "upload", inputSchema: { type: "object" } },
-          { name: "preview_recording_start", description: "rec", inputSchema: { type: "object" } },
-          { name: "device_open", description: "ios sim", inputSchema: { type: "object" } },
-          { name: "t3_theme_set", description: "theme", inputSchema: { type: "object" } },
-          { name: "t3_workflow_stop", description: "claude only", inputSchema: { type: "object" } }
-        ]
-      }
-    }) + "\\n");
+    reply({ tools: [{ name: "delegate_task", inputSchema: { type: "object" } }] });
   } else if (msg.method === "tools/call") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        content: [{
-          type: "text",
-          text: "auth=" + process.env.T3_ACP_MCP_AUTHORIZATION + ";name=" + msg.params.name + ";args=" + JSON.stringify(msg.params.arguments)
-        }]
-      }
-    }) + "\\n");
+    reply({ content: [{ type: "text", text: process.env.T3_ACP_MCP_AUTHORIZATION + ":" + msg.params.name }] });
   }
 }
 `,
-      "utf8",
-    );
+    "utf8",
+  );
+  return bridge;
+}
 
-    const fakeAgy = join(dir, "fake-agy");
-    await writeFile(
-      fakeAgy,
-      `#!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+const writeState = (path: string, bridge: string, token: string) =>
+  writeFile(
+    path,
+    JSON.stringify({
+      command: process.execPath,
+      args: [bridge],
+      env: { T3_ACP_MCP_AUTHORIZATION: `Bearer ${token}` },
+    }),
+    { mode: 0o600 },
+  );
 
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
-  const msg = JSON.parse(line);
-  if (msg.method === "initialize") {
-    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { argv: process.argv.slice(2) } }) + "\\n");
-  } else if (msg.method === "session/new" || msg.method === "session/resume") {
-    const [t3Server, customServer] = msg.params.mcpServers;
-    const envMap = Object.fromEntries((t3Server.env ?? []).map((e) => [e.name, e.value]));
-    const mcp = spawn(t3Server.command, t3Server.args, {
-      env: { ...process.env, ...envMap },
-      stdio: ["pipe", "pipe", "inherit"]
+const callText = (res: Json) => res.result.content[0].text;
+
+test("shim bridges to T3 and restarts with a replayed handshake when the token changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-shim-"));
+  try {
+    const bridge = await writeFakeBridge(dir);
+    const statePath = join(dir, "state.json");
+    await writeState(statePath, bridge, "tokA");
+    const shim = lineClient(shimPath, [], { ...process.env, T3_AGY_MCP_STATE: statePath });
+
+    const init = await shim.request({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
     });
-    const mcpRl = createInterface({ input: mcp.stdout, crlfDelay: Infinity });
-    const nextMsg = () => new Promise((resolveLine) => mcpRl.once("line", (l) => resolveLine(JSON.parse(l))));
-
-    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) + "\\n");
-    await nextMsg();
-    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\\n");
-    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) + "\\n");
-    const listed = await nextMsg();
-    mcp.stdin.write(JSON.stringify({
+    expect(init.result.serverInfo.name).toBe("t3-code");
+    expect(existsSync(`${statePath}.shim`)).toBe(true);
+    expect(readyHash(statePath)).toBe(null);
+    shim.write({ jsonrpc: "2.0", method: "notifications/initialized" });
+    const listed = await shim.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+    expect(listed.result.tools.map((t: Json) => t.name)).toEqual(["delegate_task"]);
+    expect(readyHash(statePath)).toBe(specHash(statePath));
+    const first = await shim.request({
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
-      params: { name: "delegate_task", arguments: { task: "ping" } }
-    }) + "\\n");
-    const called = await nextMsg();
+      params: { name: "delegate_task", arguments: {} },
+    });
+    expect(callText(first)).toBe("Bearer tokA:delegate_task");
 
-    mcp.stdin.write(JSON.stringify({
+    await writeState(statePath, bridge, "tokB");
+    // An idle shim picks up the new token on its own; agy already has the catalog.
+    await until(() => readyHash(statePath) === specHash(statePath), "ready for tokB");
+    const second = await shim.request({
       jsonrpc: "2.0",
       id: 4,
       method: "tools/call",
-      params: { name: "t3_tool_search", arguments: { query: "resize" } }
-    }) + "\\n");
-    const searched = await nextMsg();
+      params: { name: "delegate_task", arguments: {} },
+    });
+    expect(callText(second)).toBe("Bearer tokB:delegate_task");
+    expect(shim.notifications).toEqual([]);
 
-    mcp.stdin.write(JSON.stringify({
+    expect(await shim.close()).toBe(0);
+    expect(existsSync(`${statePath}.shim`)).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("shim serves an empty catalog without state and switches to T3 once state appears", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-shim-empty-"));
+  try {
+    const bridge = await writeFakeBridge(dir);
+    const statePath = join(dir, "state.json");
+    const shim = lineClient(shimPath, [], { ...process.env, T3_AGY_MCP_STATE: statePath });
+
+    const init = await shim.request({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
+    });
+    expect(init.result.protocolVersion).toBe("2025-06-18");
+    expect(init.result.capabilities.tools.listChanged).toBe(true);
+    shim.write({ jsonrpc: "2.0", method: "notifications/initialized" });
+    const empty = await shim.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+    expect(empty.result.tools).toEqual([]);
+    const ping = await shim.request({ jsonrpc: "2.0", id: 3, method: "ping" });
+    expect(ping.result).toEqual({});
+
+    await writeState(statePath, bridge, "tokC");
+    // Without any request from agy the shim attaches and announces the new catalog.
+    await until(() => shim.notifications.length > 0, "list_changed");
+    expect(shim.notifications).toEqual([
+      { jsonrpc: "2.0", method: "notifications/tools/list_changed" },
+    ]);
+    expect(readyHash(statePath)).toBe(null);
+    const listed = await shim.request({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} });
+    expect(listed.result.tools.map((t: Json) => t.name)).toEqual(["delegate_task"]);
+    expect(readyHash(statePath)).toBe(specHash(statePath));
+    const call = await shim.request({
       jsonrpc: "2.0",
       id: 5,
       method: "tools/call",
-      params: { name: "t3_tool_search", arguments: { query: "" } }
-    }) + "\\n");
-    const listedAllDeferred = await nextMsg();
-
-    mcp.stdin.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: 6,
-      method: "tools/call",
-      params: { name: "t3_call_tool", arguments: { name: "preview_resize", arguments: { width: 390 } } }
-    }) + "\\n");
-    const deferredCalled = await nextMsg();
-
-    mcp.stdin.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: 7,
-      method: "tools/call",
-      params: { name: "t3_call_tool", arguments: { name: "t3_project_delete", arguments: { projectId: "p1" } } }
-    }) + "\\n");
-    const blockedCalled = await nextMsg();
-    mcp.stdin.end();
-
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        tools: listed.result.tools.map((t) => t.name),
-        callText: called.result.content[0].text,
-        searchResult: JSON.parse(searched.result.content[0].text),
-        allDeferredNames: JSON.parse(listedAllDeferred.result.content[0].text).tools.map((t) => t.name),
-        deferredCallText: deferredCalled.result.content[0].text,
-        blockedIsError: blockedCalled.result.isError === true,
-        customCommand: customServer.command
-      }
-    }) + "\\n");
-  }
-}
-`,
-      "utf8",
-    );
-    await chmod(fakeAgy, 0o755);
-
-    const child = spawn(
-      wrapperPath,
-      ["acp", "--gemini-dir", dir, "--app-data-dir", "antigravity-acp"],
-      {
-        env: { ...process.env, AGY_UPSTREAM_BIN: fakeAgy },
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
-    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    const readJson = () =>
-      new Promise<any>((resolveLine, rejectLine) => {
-        const onError = (err: Error) => rejectLine(err);
-        child.once("error", onError);
-        rl.once("line", (l) => {
-          child.off("error", onError);
-          resolveLine(JSON.parse(l));
-        });
-      });
-
-    child.stdin.write(
-      JSON.stringify({ jsonrpc: "2.0", id: 10, method: "initialize", params: {} }) + "\n",
-    );
-    const initRes = await readJson();
-    expect(initRes.result.argv).toEqual([
-      "acp",
-      "--gemini-dir",
-      dir,
-      "--app-data-dir",
-      "antigravity-acp",
-      "--disable-telemetry",
-    ]);
-
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        id: 11,
-        method: "session/new",
-        params: {
-          cwd: dir,
-          mcpServers: [
-            {
-              name: "t3-code",
-              command: process.execPath,
-              args: [fakeT3Bridge],
-              env: [{ name: "T3_ACP_MCP_AUTHORIZATION", value: "Bearer secret-123" }],
-            },
-            {
-              name: "custom-db",
-              command: "/usr/bin/sqlite3",
-              args: ["test.db"],
-              env: [],
-            },
-          ],
-        },
-      }) + "\n",
-    );
-    const sessionRes = await readJson();
-    expect(sessionRes.result).toEqual({
-      tools: ["delegate_task", "html_render", "t3_tool_search", "t3_call_tool"],
-      callText: 'auth=Bearer secret-123;name=delegate_task;args={"task":"ping"}',
-      searchResult: {
-        deferredCount: 5,
-        tools: [
-          {
-            name: "preview_resize",
-            description: "resize tab viewport",
-            inputSchema: { type: "object", properties: { width: { type: "number" } } },
-          },
-        ],
-      },
-      allDeferredNames: [
-        "t3_project_list",
-        "t3_environment_read",
-        "read_pull_request_guide",
-        "preview_resize",
-        "t3_thread_transfer",
-      ],
-      deferredCallText: 'auth=Bearer secret-123;name=preview_resize;args={"width":390}',
-      blockedIsError: true,
-      customCommand: "/usr/bin/sqlite3",
+      params: { name: "delegate_task", arguments: {} },
     });
+    expect(callText(call)).toBe("Bearer tokC:delegate_task");
 
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        id: 12,
-        method: "session/resume",
-        params: {
-          sessionId: "s-1",
-          cwd: dir,
-          mcpServers: [
-            {
-              name: "t3-code",
-              command: process.execPath,
-              args: [fakeT3Bridge],
-              env: [{ name: "T3_ACP_MCP_AUTHORIZATION", value: "Bearer resume-456" }],
-            },
-            {
-              name: "custom-db",
-              command: "/usr/bin/sqlite3",
-              args: ["test.db"],
-              env: [],
-            },
-          ],
-        },
-      }) + "\n",
-    );
-    const resumeRes = await readJson();
-    expect(resumeRes.result.tools).toEqual([
-      "delegate_task",
-      "html_render",
-      "t3_tool_search",
-      "t3_call_tool",
-    ]);
-    expect(resumeRes.result.callText).toBe(
-      'auth=Bearer resume-456;name=delegate_task;args={"task":"ping"}',
-    );
-    expect(resumeRes.result.deferredCallText).toBe(
-      'auth=Bearer resume-456;name=preview_resize;args={"width":390}',
-    );
-    expect(resumeRes.result.blockedIsError).toBe(true);
-    expect(resumeRes.result.customCommand).toBe("/usr/bin/sqlite3");
-
-    child.stdin.end();
-    await new Promise((resolveClose) => child.once("close", resolveClose));
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("filters tools returned directly from MCP 2026 server/discover responses", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-discover-"));
-  try {
-    const fakeDiscoverBridge = join(dir, "fake-discover-bridge.mjs");
-    await writeFile(
-      fakeDiscoverBridge,
-      `import { createInterface } from "node:readline";
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
-  const msg = JSON.parse(line);
-  if (msg.method === "server/discover") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        protocolVersion: "2026-07-28",
-        capabilities: { tools: {} },
-        serverInfo: { name: "t3-code", version: "1.0" },
-        tools: [
-          { name: "preview_open", description: "open", inputSchema: { type: "object" } },
-          { name: "t3_worktree_status", description: "worktree", inputSchema: { type: "object" } },
-          { name: "device_list", description: "simulators", inputSchema: { type: "object" } },
-          { name: "schedule_task", description: "cron", inputSchema: { type: "object" } }
-        ]
-      }
-    }) + "\\n");
-  }
-}
-`,
-      "utf8",
-    );
-
-    const fakeAgy = join(dir, "fake-agy");
-    await writeFile(
-      fakeAgy,
-      `#!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
-
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
-  const msg = JSON.parse(line);
-  if (msg.method === "session/new") {
-    const [t3Server] = msg.params.mcpServers;
-    const envMap = Object.fromEntries((t3Server.env ?? []).map((e) => [e.name, e.value]));
-    const mcp = spawn(t3Server.command, t3Server.args, {
-      env: { ...process.env, ...envMap },
-      stdio: ["pipe", "pipe", "inherit"]
-    });
-    const mcpRl = createInterface({ input: mcp.stdout, crlfDelay: Infinity });
-    mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "server/discover", params: {} }) + "\\n");
-    const discovered = await new Promise((resolveLine) => mcpRl.once("line", (l) => resolveLine(JSON.parse(l))));
-    mcp.stdin.end();
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: { tools: discovered.result.tools.map((t) => t.name) }
-    }) + "\\n");
-  }
-}
-`,
-      "utf8",
-    );
-    await chmod(fakeAgy, 0o755);
-
-    const child = spawn(wrapperPath, ["acp"], {
-      env: { ...process.env, AGY_UPSTREAM_BIN: fakeAgy },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        id: 21,
-        method: "session/new",
-        params: {
-          cwd: dir,
-          mcpServers: [
-            {
-              name: "t3-code",
-              command: process.execPath,
-              args: [fakeDiscoverBridge],
-              env: [],
-            },
-          ],
-        },
-      }) + "\n",
-    );
-    const res = await new Promise<any>((resolveLine) =>
-      rl.once("line", (l) => resolveLine(JSON.parse(l))),
-    );
-    expect(res.result.tools).toEqual(["preview_open", "t3_tool_search", "t3_call_tool"]);
-    child.stdin.end();
-    await new Promise((resolveClose) => child.once("close", resolveClose));
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("t3_tool_search syncs catalog lazily if tools/list was skipped and t3_call_tool defaults missing arguments", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-lazy-"));
-  try {
-    const fakeLazyBridge = join(dir, "fake-lazy-bridge.mjs");
-    await writeFile(
-      fakeLazyBridge,
-      `import { createInterface } from "node:readline";
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
-  const msg = JSON.parse(line);
-  if (!("id" in msg)) continue;
-  if (msg.method === "tools/list") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        tools: [
-          { name: "delegate_task", description: "delegate", inputSchema: { type: "object" } },
-          { name: "t3_worktree_status", description: "report worktree status", inputSchema: { type: "object" } }
-        ]
-      }
-    }) + "\\n");
-  } else if (msg.method === "tools/call") {
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        content: [{ type: "text", text: msg.params.name + ":" + JSON.stringify(msg.params.arguments) }]
-      }
-    }) + "\\n");
-  }
-}
-`,
-      "utf8",
-    );
-
-    const fakeAgy = join(dir, "fake-agy");
-    await writeFile(
-      fakeAgy,
-      `#!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
-
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
-  const msg = JSON.parse(line);
-  if (msg.method === "session/resume") {
-    const [t3Server] = msg.params.mcpServers;
-    const envMap = Object.fromEntries((t3Server.env ?? []).map((e) => [e.name, e.value]));
-    const mcp = spawn(t3Server.command, t3Server.args, {
-      env: { ...process.env, ...envMap },
-      stdio: ["pipe", "pipe", "inherit"]
-    });
-    const mcpRl = createInterface({ input: mcp.stdout, crlfDelay: Infinity });
-    const nextMsg = () => new Promise((resolveLine) => mcpRl.once("line", (l) => resolveLine(JSON.parse(l))));
-
-    mcp.stdin.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name: "t3_tool_search", arguments: { query: "worktree" } }
-    }) + "\\n");
-    const searched = await nextMsg();
-
-    mcp.stdin.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: { name: "t3_call_tool", arguments: { name: "t3_worktree_status" } }
-    }) + "\\n");
-    const called = await nextMsg();
-    mcp.stdin.end();
-
-    process.stdout.write(JSON.stringify({
-      jsonrpc: "2.0",
-      id: msg.id,
-      result: {
-        searchTools: JSON.parse(searched.result.content[0].text).tools.map((t) => t.name),
-        callText: called.result.content[0].text
-      }
-    }) + "\\n");
-  }
-}
-`,
-      "utf8",
-    );
-    await chmod(fakeAgy, 0o755);
-
-    const child = spawn(wrapperPath, ["acp"], {
-      env: { ...process.env, AGY_UPSTREAM_BIN: fakeAgy },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    child.stdin.write(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        id: 31,
-        method: "session/resume",
-        params: {
-          sessionId: "s-lazy",
-          cwd: dir,
-          mcpServers: [
-            {
-              name: "t3-code",
-              command: process.execPath,
-              args: [fakeLazyBridge],
-              env: [],
-            },
-          ],
-        },
-      }) + "\n",
-    );
-    const res = await new Promise<any>((resolveLine) =>
-      rl.once("line", (l) => resolveLine(JSON.parse(l))),
-    );
-    expect(res.result).toEqual({
-      searchTools: ["t3_worktree_status"],
-      callText: "t3_worktree_status:{}",
-    });
-    child.stdin.end();
-    await new Promise((resolveClose) => child.once("close", resolveClose));
+    expect(await shim.close()).toBe(0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
