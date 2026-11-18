@@ -1,8 +1,9 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -103,40 +104,182 @@ if (args[0] !== "acp") {
     stdio: ["pipe", "pipe", "inherit"],
   });
 
-  child.stdout.pipe(process.stdout);
+  const bridge = process.env.RYUGI_T3_WATCH_BIN || join(homedir(), ".local/bin/ryugi-t3-watch");
+  const execute = promisify(execFile);
+  const opening = new Map();
+  const sessions = new Map();
+  const prompts = new Map();
 
-  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  rl.on("line", (line) => {
-    if (line.trim()) {
-      try {
-        const msg = JSON.parse(line);
-        if (
-          msg &&
-          (msg.method === "session/new" ||
-            msg.method === "session/load" ||
-            msg.method === "session/resume") &&
-          msg.params &&
-          Array.isArray(msg.params.mcpServers)
-        ) {
-          msg.params = {
-            ...msg.params,
-            mcpServers: wrapMcpServers(msg.params.mcpServers),
-          };
-          child.stdin.write(`${JSON.stringify(msg)}\n`);
-          return;
+  async function discover(server, cwd) {
+    const marker = server.args?.indexOf("acp-mcp-bridge") ?? -1;
+    const env = Object.fromEntries((server.env || []).map(({ name, value }) => [name, value]));
+    if (marker < 0 || !env.T3_ACP_MCP_ENDPOINT || !env.T3_ACP_MCP_AUTHORIZATION) return;
+    try {
+      const args = [
+        ...server.args.slice(0, marker),
+        "acp-mcp-call",
+        "orchestrator_capabilities",
+        "{}",
+      ];
+      const { stdout } = await execute(server.command, args, {
+        env: { ...process.env, ...env, ELECTRON_RUN_AS_NODE: "1" },
+        cwd,
+        timeout: 1200,
+        killSignal: "SIGKILL",
+        maxBuffer: 4 * 1024 * 1024,
+      });
+      const result = JSON.parse(stdout);
+      const value =
+        result.structuredContent ??
+        (result.content?.[0]?.text ? JSON.parse(result.content[0].text) : result);
+      if (typeof value.parentThreadId === "string") return value.parentThreadId;
+    } catch {
+      /* The ACP stream is authoritative even if discovery fails. */
+    }
+  }
+
+  async function lifecycle(op, state, extra = [], timeout = 8000) {
+    if (!state.thread) return "";
+    try {
+      const args = [
+        op,
+        "--cwd",
+        state.cwd,
+        "--host",
+        "Antigravity",
+        "--thread",
+        state.thread,
+        ...extra,
+      ];
+      const { stdout } = await execute(bridge, args, { timeout, killSignal: "SIGKILL" });
+      return stdout.trimEnd();
+    } catch {
+      return "";
+    }
+  }
+
+  async function incoming(line) {
+    const msg = JSON.parse(line);
+    const params = msg?.params;
+    if (["session/new", "session/load", "session/resume"].includes(msg.method)) {
+      if (params?.sessionId) sessions.delete(params.sessionId);
+      if (!Array.isArray(params?.mcpServers)) return line;
+      const server = params.mcpServers.find(
+        (s) => s?.name === "t3-code" && typeof s.command === "string",
+      );
+      if (server && typeof params.cwd === "string" && existsSync(bridge)) {
+        const state = { cwd: params.cwd, thread: null, calls: new Map() };
+        state.ready = discover(server, state.cwd).then((thread) => {
+          state.thread = thread;
+          if (thread) void lifecycle("session-start", state);
+        });
+        opening.set(msg.id, { state, sessionId: params.sessionId });
+      }
+      params.mcpServers = wrapMcpServers(params.mcpServers);
+      return JSON.stringify(msg);
+    }
+    if (msg.method === "session/prompt" && Array.isArray(params?.prompt)) {
+      const state = sessions.get(params.sessionId);
+      if (state) {
+        const deadline = Date.now() + 1500;
+        await state.ready;
+        prompts.set(msg.id, state);
+        const text = params.prompt
+          .filter((p) => p.type === "text")
+          .map((p) => p.text)
+          .join("\n");
+        const budget = deadline - Date.now();
+        const context =
+          budget > 0 &&
+          (await lifecycle(
+            "selection-context",
+            state,
+            ["--session-id", params.sessionId, "--prompt=" + text],
+            budget,
+          ));
+        if (context) {
+          params.prompt.unshift({ type: "text", text: context });
+          return JSON.stringify(msg);
         }
-      } catch {
-        // Forward unparsed lines unchanged.
       }
     }
-    child.stdin.write(`${line}\n`);
-  });
-  rl.on("close", () => {
-    child.stdin.end();
-  });
+    return line;
+  }
 
-  child.on("exit", (code, signal) => {
-    if (signal) process.kill(process.pid, signal);
-    process.exit(code ?? 0);
+  function outgoing(msg) {
+    if (!msg || typeof msg !== "object") return;
+    if (!msg.method && opening.has(msg.id)) {
+      const { state, sessionId } = opening.get(msg.id);
+      opening.delete(msg.id);
+      const id = msg.result?.sessionId || sessionId;
+      if (!msg.error && id) sessions.set(id, state);
+    }
+    if (!msg.method && prompts.has(msg.id)) {
+      const state = prompts.get(msg.id);
+      prompts.delete(msg.id);
+      state.calls.clear();
+      void lifecycle("turn-end", state);
+    }
+    if (msg.method !== "session/update") return;
+    const state = sessions.get(msg.params?.sessionId);
+    const update = msg.params?.update;
+    if (
+      !state?.thread ||
+      !update ||
+      !["tool_call", "tool_call_update"].includes(update.sessionUpdate)
+    )
+      return;
+    if (![...prompts.values()].includes(state)) return; // load can replay historical tool calls
+    const id = update.toolCallId;
+    if (!id) return;
+    const raw = update.rawInput;
+    if (
+      typeof raw?.CommandLine === "string" &&
+      raw.CommandLine.includes("--artifact") &&
+      raw.CommandLine.includes("ryugi") &&
+      (update.title === "run_command" || update.kind === "execute" || state.calls.has(id))
+    ) {
+      state.calls.set(id, { command: raw.CommandLine, cwd: raw.Cwd || state.cwd });
+    } else if (update.title === "run_command" || update.kind === "execute") {
+      if (!state.calls.has(id)) state.calls.set(id, {});
+    }
+    if (["completed", "failed", "cancelled"].includes(update.status)) {
+      const call = state.calls.get(id);
+      state.calls.delete(id);
+      if (update.status === "completed" && call?.command) {
+        void lifecycle("observe-command", { ...state, cwd: call.cwd }, [
+          "--command=" + call.command,
+        ]);
+      }
+    }
+  }
+
+  // Forward bytes directly. The second reader observes JSON frames only.
+  child.stdout.pipe(process.stdout, { end: false });
+  const output = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  output.on("line", (line) => {
+    try {
+      outgoing(JSON.parse(line));
+    } catch {
+      /* Non-protocol output still passes through. */
+    }
   });
+  const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  child.on("close", (code, signal) => {
+    input.close();
+    process.stdin.pause();
+    if (signal) process.kill(process.pid, signal);
+    process.exitCode = code ?? 0;
+  });
+  child.stdin.on("error", () => input.close());
+  for await (const line of input) {
+    let forwarded = line;
+    try {
+      forwarded = await incoming(line);
+    } catch {
+      /* Forward unchanged on bridge errors. */
+    }
+    if (!child.stdin.destroyed) child.stdin.write(forwarded + "\n");
+  }
+  child.stdin.end();
 }
