@@ -13,9 +13,6 @@ tools:
   - manage_task
   - search_web
   - ask_question
-  - invoke_subagent
-  - send_message
-  - manage_subagents
 ---
 
 # Lean
