@@ -427,17 +427,60 @@ test.each([
   expect(text).not.toMatch(/[┌┐└┘├┤┬┴┼│]/);
 });
 
+const certificates = [
+  "| 签发 | 到期 | 签发机构 | crt.sh id |",
+  "|---|---|---|---|",
+  "| 2026-07-11 | 2026-10-09 | YE2 | 27849832900 |",
+  "| 2026-09-09 | 2026-12-08 | YE1 | 29532944849 |",
+].join("\n");
+
+test.each([
+  ["- 证书：", 2, 2],
+  ["10. 证书：", 4, 4],
+  ["- Evidence\n  - 证书：", 4, 6],
+] as const)("certificate table stays aligned inside %s when resized", (intro, indent, gutter) => {
+  const pad = " ".repeat(indent);
+  const source = intro + "\n\n" + certificates.replace(/^/gm, pad) + "\n\n" + pad + "说明。";
+  const transform = setup();
+  for (const width of [80, 34, 80]) {
+    const lines = render(transform(source, { availableWidth: width }), width).map((l) =>
+      l.trimEnd(),
+    );
+    const inner = width - gutter;
+    const expected = render(transform(certificates, { availableWidth: inner }), inner)
+      .map((l) => l.trimEnd())
+      .filter(Boolean)
+      .map((l) => " ".repeat(gutter) + l);
+    expect(lines.join("\n")).toContain(expected.join("\n"));
+    expect(lines.filter(Boolean).at(-1)).toBe(" ".repeat(gutter) + "说明。");
+  }
+});
+
+test("only an unfinished table at the very end of a list may have missing cells", () => {
+  const source = "- | A | B |\n  |---|---|\n  | partial |";
+  const transform = setup();
+  expect(render(transform(source, { isStreaming: true })).join("\n")).toContain("━");
+  for (const suffix of ["\n- next", "\n\n  Later.", "\n\n# Next"])
+    expect(transform(source + suffix, { isStreaming: true })).toBe(source + suffix);
+  expect(transform(source)).toBe(source);
+});
+
+test("a table immediately after prose keeps a tight list tight", () => {
+  const source = "- Evidence\n  | A | B |\n  |---|---|\n  | x | y |\n- Next";
+  expect(render(setup()(source)).map((line) => line.trimEnd())).toEqual([
+    "- Evidence",
+    "  A  B",
+    "  ━  ━",
+    "  x  y",
+    "- Next",
+  ]);
+});
+
 test.each([
   (source: string) =>
     source
       .split("\n")
       .map((line) => "> " + line)
-      .join("\n"),
-  (source: string) =>
-    "- item\n\n" +
-    source
-      .split("\n")
-      .map((line) => "  " + line)
       .join("\n"),
   (source: string) =>
     source
@@ -447,9 +490,11 @@ test.each([
   (source: string) => "```md\n" + source + "\n```",
   (source: string) => "~~~md\n" + source + "\n~~~",
   (source: string) => "```md\n" + source,
-])("nested tables and code are never traversed", (wrap) => {
+])("quotes and code are never traversed, including inside a list item", (wrap) => {
   const source = wrap(sample);
   expect(setup()(source)).toBe(source);
+  const inList = "- item\n\n" + source.replace(/^/gm, "  ");
+  expect(setup()(inList)).toBe(inList);
 });
 
 test("mixed prose, code, Mermaid and chart fences retain their exact source around a real table", () => {

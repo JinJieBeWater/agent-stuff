@@ -96,6 +96,53 @@ function renderTable(
   return `\n\n${output.map(codeSpan).join("  \n")}\n\n`;
 }
 
+function renderListTables(
+  list: Tokens.List,
+  width: number,
+  definitions: string,
+  streamingTail: boolean,
+  depth = 0,
+): string {
+  if (list.items.map((item) => item.raw).join("") !== list.raw) return list.raw;
+  return list.items
+    .map((item, i) => {
+      if (!item.tokens.some((t) => t.type === "table" || t.type === "list")) return item.raw;
+      const marker = /^ {0,3}(?:[-+*]|\d{1,9}[.)]) +/.exec(item.raw)?.[0];
+      if (!marker) return item.raw;
+      const indent = " ".repeat(marker.length);
+      const wrap = (body: string) => marker + body.replace(/\n(?=[^\n])/g, "\n" + indent);
+      const original = wrap(item.tokens.map((t) => t.raw).join(""));
+      const suffix = item.raw.slice(original.length);
+      // Marked removes list prefixes. Only reapply them if this reproduces the original source.
+      if (!item.raw.startsWith(original) || /[^\n]/.test(suffix)) return item.raw;
+
+      // Pi indents nested lists by four columns per level and renumbers ordered markers.
+      const bulletWidth = list.ordered ? String(Number(list.start) + i).length + 2 : 2;
+      const innerWidth = width - depth * 4 - bulletWidth - (item.task ? 4 : 0);
+      const body = item.tokens
+        .map((token, j) => {
+          const tail = streamingTail && i === list.items.length - 1 && j === item.tokens.length - 1;
+          if (token.type === "list")
+            return renderListTables(token as Tokens.List, width, definitions, tail, depth + 1);
+          if (token.type !== "table" || innerWidth < 1) return token.raw;
+          const table = renderTable(
+            token as Tokens.Table,
+            innerWidth,
+            definitions,
+            streamingTail,
+            tail,
+          );
+          if (table === token.raw) return token.raw;
+          // Keep the marker attached and preserve tight lists and adjacent block boundaries.
+          if (item.tokens[j - 1]?.raw.endsWith("\\\n")) return token.raw;
+          return table.trim() + (token.raw.match(/\n+$/)?.[0] ?? "");
+        })
+        .join("");
+      return wrap(body) + suffix;
+    })
+    .join("");
+}
+
 export default function borderlessTables(pi: ExtensionAPI) {
   pi.registerMarkdownTransformer((markdown, context) => {
     if (context.messageType !== "assistant" || !markdown.includes("|")) return markdown;
@@ -108,18 +155,27 @@ export default function borderlessTables(pi: ExtensionAPI) {
     parser.walkTokens(tokens, (token) => {
       if (token.type === "def") definitions.push(token.raw);
     });
+    const refs = definitions.join("\n");
     return tokens
-      .map((token, index) =>
-        token.type === "table"
-          ? renderTable(
-              token as Tokens.Table,
-              context.availableWidth,
-              definitions.join("\n"),
-              context.isStreaming,
-              index === tokens.length - 1,
-            )
-          : token.raw,
-      )
+      .map((token, index) => {
+        const last = index === tokens.length - 1;
+        if (token.type === "list")
+          return renderListTables(
+            token as Tokens.List,
+            context.availableWidth,
+            refs,
+            context.isStreaming && last,
+          );
+        if (token.type === "table")
+          return renderTable(
+            token as Tokens.Table,
+            context.availableWidth,
+            refs,
+            context.isStreaming,
+            last,
+          );
+        return token.raw;
+      })
       .join("");
   });
 }
