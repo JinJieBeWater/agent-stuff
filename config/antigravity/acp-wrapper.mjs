@@ -91,6 +91,7 @@ const upstreamBin = resolveUpstreamBinary();
 
 if (args[0] !== "acp") {
   const child = spawn(upstreamBin, args, { stdio: "inherit" });
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
   child.on("exit", (code, signal) => {
     if (signal) process.kill(process.pid, signal);
     process.exit(code ?? 0);
@@ -103,6 +104,7 @@ if (args[0] !== "acp") {
   const child = spawn(upstreamBin, acpArgs, {
     stdio: ["pipe", "pipe", "inherit"],
   });
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
 
   const bridge = process.env.RYUGI_T3_WATCH_BIN || join(homedir(), ".local/bin/ryugi-t3-watch");
   const execute = promisify(execFile);
@@ -124,7 +126,7 @@ if (args[0] !== "acp") {
       const { stdout } = await execute(server.command, args, {
         env: { ...process.env, ...env, ELECTRON_RUN_AS_NODE: "1" },
         cwd,
-        timeout: 1200,
+        timeout: 5000,
         killSignal: "SIGKILL",
         maxBuffer: 4 * 1024 * 1024,
       });
@@ -182,10 +184,17 @@ if (args[0] !== "acp") {
       const state = sessions.get(params.sessionId);
       if (state) {
         const deadline = Date.now() + 1500;
-        await state.ready;
+        let timer;
+        await Promise.race([
+          state.ready,
+          new Promise((r) => {
+            timer = setTimeout(r, 1500);
+          }),
+        ]);
+        clearTimeout(timer);
         prompts.set(msg.id, state);
         const text = params.prompt
-          .filter((p) => p.type === "text")
+          .filter((p) => p?.type === "text")
           .map((p) => p.text)
           .join("\n");
         const budget = deadline - Date.now();
@@ -226,22 +235,32 @@ if (args[0] !== "acp") {
     if (
       !state?.thread ||
       !update ||
-      !["tool_call", "tool_call_update"].includes(update.sessionUpdate)
+      !["tool_call", "tool_call_update"].includes(update.sessionUpdate) ||
+      update.kind === "edit" ||
+      update.kind === "read"
     )
       return;
     if (![...prompts.values()].includes(state)) return; // load can replay historical tool calls
     const id = update.toolCallId;
     if (!id) return;
-    const raw = update.rawInput;
+    const rawIn = update.rawInput && typeof update.rawInput === "object" ? update.rawInput : null;
+    const rawOut =
+      update.rawOutput && typeof update.rawOutput === "object" ? update.rawOutput : null;
+    const command =
+      rawIn?.CommandLine ??
+      rawIn?.command_line ??
+      rawIn?.commandLine ??
+      rawIn?.command ??
+      rawOut?.commandLine ??
+      rawOut?.command_line;
+    const cwd = rawIn?.Cwd ?? rawIn?.cwd ?? rawIn?.WorkingDirectory ?? rawIn?.working_dir;
     if (
-      typeof raw?.CommandLine === "string" &&
-      raw.CommandLine.includes("--artifact") &&
-      raw.CommandLine.includes("ryugi") &&
-      (update.title === "run_command" || update.kind === "execute" || state.calls.has(id))
+      typeof command === "string" &&
+      command.includes("--artifact") &&
+      command.includes("ryugi")
     ) {
-      state.calls.set(id, { command: raw.CommandLine, cwd: raw.Cwd || state.cwd });
-    } else if (update.title === "run_command" || update.kind === "execute") {
-      if (!state.calls.has(id)) state.calls.set(id, {});
+      const prev = state.calls.get(id);
+      state.calls.set(id, { command, cwd: cwd || prev?.cwd || state.cwd });
     }
     if (["completed", "failed", "cancelled"].includes(update.status)) {
       const call = state.calls.get(id);

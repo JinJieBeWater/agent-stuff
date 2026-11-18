@@ -26,10 +26,10 @@ function rig(t, { missing = false } = {}) {
       const m=JSON.parse(line);fs.appendFileSync(process.env.TRACE,line+'\\n');
       if(m.method==='session/prompt') {
         for(const update of [
-          {sessionUpdate:'tool_call',toolCallId:'1',title:'run_command',rawInput:{CommandLine:'ryugi start --artifact slides/foo',Cwd:process.cwd()},status:'in_progress'},
+          {sessionUpdate:'tool_call',toolCallId:'1',title:'Start Ryugi slides',rawInput:{CommandLine:'ryugi start --artifact slides/foo',WorkingDirectory:process.cwd()},status:'in_progress'},
           {sessionUpdate:'tool_call_update',toolCallId:'1',status:'completed'},
           {sessionUpdate:'tool_call_update',toolCallId:'1',status:'completed'},
-          {sessionUpdate:'tool_call',toolCallId:'2',title:'run_command',rawInput:{CommandLine:'ryugi start --artifact slides/failed'},status:'failed'},
+          {sessionUpdate:'tool_call',toolCallId:'2',title:'Start failed slides',rawInput:{CommandLine:'ryugi start --artifact slides/failed'},status:'failed'},
         ]) send({method:'session/update',params:{sessionId:m.params.sessionId,update}});
         send({id:m.id,result:{stopReason:'end_turn'}});
       } else send({id:m.id,result:{sessionId:m.params.sessionId||'new-id'}});
@@ -66,8 +66,12 @@ function rig(t, { missing = false } = {}) {
     },
     stdio: ["pipe", "pipe", "inherit"],
   });
-  t.after(() => wrapperProcess.kill());
   const rl = createInterface({ input: wrapperProcess.stdout });
+  t.after(() => {
+    rl.close();
+    wrapperProcess.stdin.destroy();
+    wrapperProcess.kill();
+  });
   let bytes = "";
   wrapperProcess.stdout.setEncoding("utf8").on("data", (chunk) => (bytes += chunk));
   const rows = (file) =>
