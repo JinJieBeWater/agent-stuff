@@ -1,6 +1,6 @@
 {
   "description": "仅用于 machine=kvm，限只能在 KVM 做的 Linux 构建、门禁、实跑和读图：按明确基线或对象范围独立评审；被评对象只读，可写指定报告，修复交回作者",
-  "model": "openai-codex/gpt-6.1-sol",
+  "model": "openai-codex/gpt-6.2-sol",
   "thinking": "max",
   "prompt": "../reviewer/prompt.md",
   "share_context": false,

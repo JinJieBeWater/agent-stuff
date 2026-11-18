@@ -16,7 +16,7 @@
   "defaultProvider": "claude-other",
   "defaultThinkingLevel": "high",
   "modelThinkingLevels": {
-    "openai-codex/gpt-6.1-sol": "high"
+    "openai-codex/gpt-6.2-sol": "high"
   },
   "defaultTools": ["+codemode", "+tool_search"],
   "editorPaddingX": 1,
