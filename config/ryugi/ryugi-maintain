@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+# Only Ryugi's ownership check needs to avoid unrelated remote catalogs.
+if [ "${0##*/}" = codex ]; then
+  if [ "$#" -eq 3 ] && [ "$1 $2 $3" = 'plugin list --json' ]; then
+    set -- "$@" --marketplace ryugi-managed
+  fi
+  exec "$RYUGI_MAINTENANCE_CODEX" "$@"
+fi
+
+case "${1-}" in
+  update|doctor|install) ;;
+  ''|--*) set -- update "$@" ;;
+  *) echo 'Usage: ryugi-maintain [update|doctor|install] [options]' >&2; exit 2 ;;
+esac
+
+if ! RYUGI_MAINTENANCE_CODEX=$(command -v codex); then
+  exec ryugi "$@"
+fi
+export RYUGI_MAINTENANCE_CODEX
+
+shim=$(mktemp -d "${TMPDIR:-/tmp}/ryugi-maintain.XXXXXX")
+trap 'rm -f "$shim/codex"; rmdir "$shim"' EXIT
+ln -s "$(/usr/bin/readlink -f "$0")" "$shim/codex"
+PATH="$shim:$PATH" ryugi "$@"
