@@ -1,11 +1,12 @@
 # 跨 agent 的个人配置
 
-通用指令源是本目录的 [AGENTS.md](AGENTS.md)，本机 `~/.agents/AGENTS.md` 软链到它，Codex 和 Claude 的全局文件显式读取。Pi 使用独立的[全局指令](../pi/AGENTS.md)，不读取本文件；两份各自维护。
+通用指令源是本目录的 [AGENTS.md](AGENTS.md)，Codex、Claude、Pi 共用这一份。Pi 专属的工具和路径写在 [APPEND_SYSTEM.md](../pi/APPEND_SYSTEM.md)，由 Pi 原生追加到系统提示词。
 
 ```text
-~/.codex/AGENTS.md ──读取──┐
-~/.claude/CLAUDE.md ─读取──┴─→ ~/.agents/AGENTS.md → config/shared/AGENTS.md
-~/.pi/agent/AGENTS.md → config/pi/AGENTS.md（独立）
+~/.codex/AGENTS.md ──软链──┐
+~/.claude/CLAUDE.md ─@导入──┴─→ ~/.agents/AGENTS.md → config/shared/AGENTS.md
+~/.pi/agent/AGENTS.md ─────────软链─→ config/shared/AGENTS.md
+~/.pi/agent/APPEND_SYSTEM.md ──软链─→ config/pi/APPEND_SYSTEM.md（Pi 增量）
 
 ~/.agents/skills/<name>/ → 原 skill 目录（含 references、scripts 等）
 ```
@@ -20,12 +21,11 @@
 
 ## 本机整理与边界
 
-- 通用版以 Pi 版为内容基线，保留沟通、权限、agent 文本写作、验证、提交和清理规则；提问约定保留问题集中、逐题列出和推荐项说明，不绑定工具名称。
-- Pi 专属工具、路径和环境补充入口留在 Pi 版；通用版不规定 skill 搜索或兜底查找机制，也不引入 Ryugi、Ponytail 的整套工作流。两份文件不自动继承，修改共同规则时需对照另一份检查是否同步。
-- KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力；通用版保留使用原则，连接命令、地址与项目位置留在对应 skill 或环境说明。本机项目环境约定保存在不入库的 `~/.pi/agent/local-environment.md`，由 Pi 版引用。
-- Codex 和 Claude 的全局文件原先已读取共享源，保留各自额外规则。
+- 共同规则只写在 AGENTS.md，写成任何宿主都能执行的说法：skill 用 `~/.agents/skills/<name>/SKILL.md` 路径引用，提问约定不绑定工具名称。只在 Pi 成立的工具名和路径写进 APPEND_SYSTEM.md，不在两处重复同一条。通用版不规定 skill 搜索或兜底查找机制，也不引入 Ryugi、Ponytail 的整套工作流。
+- 项目里的 `.pi/APPEND_SYSTEM.md` 会整份顶替全局的 APPEND_SYSTEM.md，两者不合并；启动时带 `--append-system-prompt` 同样会跳过它。项目需要追加时，把 Pi 增量一并写进项目文件。
+- KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力；通用版保留使用原则，连接命令、地址与项目位置留在对应 skill 或项目说明。单个项目的本机环境约定写在该项目仓库外层目录的 AGENTS.md（如 Engineer 的在 `~/my/work/mtyq/LeapInfra/AGENTS.md`），不进全局指令。
 - 本次从 Pi 安装来源暴露的通用 skill、依赖和未导出原因见[审计清单](../../docs/pi-shared-skills-audit-2026-11-09.md)。上游目录原样保留，整个目录软链，不复制 SKILL.md。
-- 含本机网络地址的 `configure-kvm-moshi-via-tailscale` 实体保留在 `~/.agents/skills`，由 Pi/Codex/Claude 软链使用；它和本机环境补充规则均不进入公开仓库，换机器时私下恢复。
+- 含本机网络地址的 `configure-kvm-moshi-via-tailscale` 实体保留在 `~/.agents/skills`，由 Pi/Codex/Claude 软链使用；它和项目外层的本机环境说明均不进入公开仓库，换机器时私下恢复。
 - Pi 扩展、工具注册、MCP、模型、认证、UI 和宿主生命周期配置仍归 Pi。通用 skill 可读不等于宿主具备其调用的工具；使用前按 skill 的前置条件核对。
 - show-me 保留[既有两个版本](../../skills/README.md)：共享版保持显式调用策略，Pi 版保留自动发现和原生渲染适配。
 
@@ -35,6 +35,8 @@
 
 ```sh
 ln -s ~/my/pi-stuff/config/shared/AGENTS.md ~/.agents/AGENTS.md
+ln -s ~/my/pi-stuff/config/shared/AGENTS.md ~/.pi/agent/AGENTS.md
+ln -s ~/my/pi-stuff/config/pi/APPEND_SYSTEM.md ~/.pi/agent/APPEND_SYSTEM.md
 ```
 
 各 skill 的源路径见审计清单；目录软链例如：

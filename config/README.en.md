@@ -6,7 +6,7 @@ Checked on 2026-11-01. This archive holds personal configuration from my current
 
 `pi/` maps to the Pi user directory, `~/.pi/agent/` by default; `rpiv-todo/` maps to `~/.config/rpiv-todo/`. Home paths use `~/`. Device IDs, the last-read changelog version, audio setup state, and authentication are excluded.
 
-2026-11-09: Pi uses its own global instructions in [pi/AGENTS.md](pi/AGENTS.md) and does not read [shared/AGENTS.md](shared/AGENTS.md), which serves Codex and Claude (see the [cross-agent setup](shared/README.md), Chinese). Under `pi/`, AGENTS.md, the pi-skill-discovery/tool-exposure/context-policy JSON files, `shepherdr/profiles/`, and `skills/multi-agent-review/` are live local symlink targets; edits take effect directly. Other configuration is a snapshot refreshed from this machine on 2026-11-09.
+2026-11-20: Pi's global instructions `~/.pi/agent/AGENTS.md` symlink to [shared/AGENTS.md](shared/AGENTS.md), the same file Codex and Claude use; Pi-only additions live in [pi/APPEND_SYSTEM.md](pi/APPEND_SYSTEM.md) (see the [cross-agent setup](shared/README.md), Chinese). Under `pi/`, APPEND_SYSTEM.md, the pi-skill-discovery/tool-exposure/context-policy JSON files, `shepherdr/profiles/`, and `skills/multi-agent-review/` are live local symlink targets; edits take effect directly. Other configuration is a snapshot refreshed from this machine on 2026-11-09.
 
 See the [personal setup](../docs/personal-setup.en.md) for package sources and filters. Context policy loads Shepherdr in terminals owned by Herdr Core.
 
@@ -14,7 +14,7 @@ See the [personal setup](../docs/personal-setup.en.md) for package sources and f
 
 | File                                                                                                                                                          | Purpose                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| [AGENTS.md](pi/AGENTS.md)                                                                                                                                     | Pi global collaboration rules, independent of the shared file   |
+| [APPEND_SYSTEM.md](pi/APPEND_SYSTEM.md)                                                                                                                       | Pi-only rules layered on top of the shared instructions         |
 | [settings.json](pi/settings.json)                                                                                                                             | Package sources, load order, filters, and interface preferences |
 | [pi-codex-conversion.json](pi/pi-codex-conversion.json)                                                                                                       | PCC normal mode, prompts, compaction, and voice preferences     |
 | [pi-skill-discovery.json](pi/pi-skill-discovery.json), [pi-tool-exposure.json](pi/pi-tool-exposure.json), [pi-context-policy.json](pi/pi-context-policy.json) | Skill visibility, tool exposure, and environment adaptation     |

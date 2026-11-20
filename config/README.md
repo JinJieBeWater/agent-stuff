@@ -6,7 +6,7 @@
 
 `pi/` 对应 Pi 用户目录，默认是 `~/.pi/agent/`；`rpiv-todo/` 对应 `~/.config/rpiv-todo/`。主目录路径统一为 `~/`，设备 ID、已读版本、音频初始化状态和认证不入库。
 
-2026-11-09：Pi 使用独立的全局指令 [pi/AGENTS.md](pi/AGENTS.md)，不读取 [shared/AGENTS.md](shared/AGENTS.md)（后者供 Codex、Claude 使用，见[跨 agent 配置](shared/README.md)）。`pi/` 下的 AGENTS.md、pi-skill-discovery/tool-exposure/context-policy 三个 JSON、`shepherdr/profiles/` 和 `skills/multi-agent-review/` 是本机软链的源文件，直接修改即生效；其余配置是快照，2026-11-09 已按本机刷新。
+2026-11-20：Pi 的全局指令 `~/.pi/agent/AGENTS.md` 软链到与 Codex、Claude 共用的 [shared/AGENTS.md](shared/AGENTS.md)，Pi 专属补充写在 [pi/APPEND_SYSTEM.md](pi/APPEND_SYSTEM.md)（见[跨 agent 配置](shared/README.md)）。`pi/` 下的 APPEND_SYSTEM.md、pi-skill-discovery/tool-exposure/context-policy 三个 JSON、`shepherdr/profiles/` 和 `skills/multi-agent-review/` 是本机软链的源文件，直接修改即生效；其余配置是快照，2026-11-09 已按本机刷新。
 
 包来源与过滤见[个人清单](../docs/personal-setup.md)。Shepherdr 由环境策略按 Core 终端归属加载。
 
@@ -14,7 +14,7 @@
 
 | 文件                                                                                                                                                          | 用途                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [AGENTS.md](pi/AGENTS.md)                                                                                                                                     | Pi 全局协作规则（独立于共享版）         |
+| [APPEND_SYSTEM.md](pi/APPEND_SYSTEM.md)                                                                                                                       | Pi 专属补充规则，叠加在共享指令之上     |
 | [settings.json](pi/settings.json)                                                                                                                             | 包来源、加载顺序、过滤和界面偏好        |
 | [pi-codex-conversion.json](pi/pi-codex-conversion.json)                                                                                                       | PCC normal 模式、提示词、压缩和语音偏好 |
 | [pi-skill-discovery.json](pi/pi-skill-discovery.json)、[pi-tool-exposure.json](pi/pi-tool-exposure.json)、[pi-context-policy.json](pi/pi-context-policy.json) | Skill 展示、工具暴露和环境适配          |
