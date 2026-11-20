@@ -35,6 +35,7 @@ We need to be on the same page with terminology. When communicating, use this la
 The most common defect is a change that works on the path you tested and is missing everywhere else. Before calling work done, walk this list and say which entries applied:
 
 - **Entry points.** A behavior reachable from one place is usually also reachable from others. Fixing one is not fixing the feature.
+- **Agents.** A capability a user can trigger is usually one an agent should reach through tools, and scheduled tasks run the same paths. That only works when it is a service method, not handler code.
 - **Contracts.** Anything crossing a process or network boundary is typed in one place. Change the schema and every consumer follows.
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
@@ -92,6 +93,7 @@ Most code changes do not need an internal documentation change. Agents can read 
 - When a documented decision or constraint changes, rewrite or remove the affected text. Do not append another account of the new behavior. A new internal page needs a distinct, durable reason to exist.
 - User docs help users accomplish tasks. Give each major feature a concise section explaining what it does, how to start, and anything unintuitive. A settings path is useful; descriptions of visible buttons, icons, layouts, animations, or every UI state are not. Before adding text, ask what task or decision it helps the user with.
 - Keep user docs in the shipped product's voice, without implementation details or contributor tooling. Update the relevant feature section when how to use it changes. A UI tweak does not need a documentation entry, and a new control does not need its own page.
+- Operations docs hold maintainer setup, release, and debugging procedures. Instructions for operating what users install belong in user docs.
 
 ## Plans and work artifacts
 
@@ -105,7 +107,9 @@ Most code changes do not need an internal documentation change. Agents can read 
 
 ## Where code lives
 
-<!-- fill: boundaries the directory names don't show. Delete if obvious. -->
+<!-- fill: boundaries the directory names don't show. -->
+
+- `.repos/` - vendored read-only references. Prefer their patterns over invented ones. Never edit or import from them. Refresh one when you bump the dependency it mirrors.
 
 ## Taste
 
@@ -118,8 +122,9 @@ Most code changes do not need an internal documentation change. Agents can read 
 - No continuously repainting animations; they peg the GPU on high-refresh displays.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
 
-<!-- fill: project-specific patterns. -->
+<!-- fill: project-specific patterns. Where a lint rule enforces a rule in this file, name the lint rule beside it. -->
 
 ## Additional tips
 
 - Security is important, but should not be over-indexed on, especially for dev mode/maintainer-only features.
+- Before a security audit or triaging a vulnerability report, read [SECURITY.md](SECURITY.md) for the trust model and what is intended.
