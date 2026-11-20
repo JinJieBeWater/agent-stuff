@@ -22,7 +22,7 @@ Why the layout is this way, and what each host owns: `~/my/pi-stuff/config/share
 
 Script: `scripts/agent-config` in this skill's directory.
 
-1. `agent-config check`. Read every line. `FOREIGN`, `BROKEN` and `PROMPT` are a human's call; the rest `apply` fixes.
+1. `agent-config check`. Read every line. `FOREIGN`, `BROKEN`, and `PROMPT` lines that say `not touched`, `by hand` or `sync.sh` are a human's call; `apply` fixes the rest.
 2. Change the source, never a host path: the manifest, a `~/.agents/skills` link, a prompt file in pi-stuff, or a skill's own frontmatter.
 3. `agent-config apply --dry-run`; every `WOULD` line matches what you meant. Then `agent-config apply`.
 4. `agent-config check` exits 0. `INFO` and `WARN` lines leave the exit code alone; read them anyway.
@@ -32,10 +32,10 @@ Script: `scripts/agent-config` in this skill's directory.
 
 - **Add a skill**: install it from its source, `ln -s <source dir> ~/.agents/skills/<dir>`, then the flow.
 - **Remove a skill**: delete its `~/.agents/skills/<dir>` link, then the flow; `apply` removes the host links.
-- **Manual-only**: a skill you edit gets `disable-model-invocation: true` in its frontmatter (all four hosts honor it). An upstream skill you leave untouched goes in `explicit_only`: Claude and Codex hide it, Pi and Antigravity print `INFO` because they have no setting for it.
+- **Manual-only**: a skill you edit gets `disable-model-invocation: true` in its frontmatter (Claude, Pi and Antigravity read it; `apply` writes Codex's `openai.yaml`). An upstream skill you leave untouched goes in `explicit_only`: Claude and Codex hide it, Pi and Antigravity print `INFO` because they have no setting for it.
 - **Keep a skill out of one host**: `[exclude].<host>`.
 - **Edit a global prompt**: edit the source file in pi-stuff; `check` confirms every entry still points at it.
-- **New machine**: install skill sources and recreate `~/.agents/skills` links (sources: `docs/pi-shared-skills-audit-2026-11-09.md`), then the flow.
+- **New machine**: restore `~/.config/agent-config/skills.toml` (not in the repo; `check` refuses to run without it), install skill sources and recreate `~/.agents/skills` links (sources: `docs/pi-shared-skills-audit-2026-11-09.md`), then the flow.
 - **FOREIGN entry**: a real directory, or a link elsewhere, where a link to `~/.agents/skills` belongs. `diff -r` it against the `.agents` copy; replace it with the link only after the user agrees.
 
 ## Host details

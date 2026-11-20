@@ -377,5 +377,69 @@ class PromptEntryTests(unittest.TestCase):
         self.assertIn("PROMPT claude ~/.claude/CLAUDE.md", self.h.run("check").stdout)
 
 
+class ManifestTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.h = Home(self._tmp.name)
+        self.settings = self.h.home / ".claude/settings.json"
+        self.h.add("m")
+        self.h.manifest('explicit_only = ["m"]\n')
+        self.h.run("apply")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_missing_manifest_stops_before_touching_anything(self):
+        (self.h.home / ".config/agent-config/skills.toml").unlink()
+        before = self.settings.read_text()
+        r = self.h.run("apply")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("skills.toml", r.stderr)
+        self.assertEqual(self.settings.read_text(), before)
+
+    def test_unknown_key_is_rejected(self):
+        self.h.manifest('explicit-only = ["m"]\n')
+        r = self.h.run("check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("explicit-only", r.stderr)
+
+    def test_string_instead_of_list_is_rejected(self):
+        self.h.manifest('explicit_only = "m"\n')
+        r = self.h.run("check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("explicit_only must be a list of names", r.stderr)
+
+    def test_exclude_value_must_be_a_list(self):
+        self.h.manifest('[exclude]\npi = "m"\n')
+        r = self.h.run("check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("exclude.pi must be a list of names", r.stderr)
+
+
+class WrongTargetTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.h = Home(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_link_to_another_skill_is_foreign(self):
+        h = self.h
+        h.add("a")
+        h.add("b")
+        (h.claude / "a").symlink_to("../../.agents/skills/b")
+        r = h.run("apply")
+        self.assertIn("FOREIGN claude a", r.stdout)
+        self.assertEqual(os.readlink(h.claude / "a"), "../../.agents/skills/b")
+
+    def test_alias_link_with_its_own_name_is_kept(self):
+        h = self.h
+        h.add("a")
+        (h.claude / "my-alias").symlink_to("../../.agents/skills/a")
+        h.run("apply")
+        self.assertTrue((h.claude / "my-alias").is_symlink())
+
+
 if __name__ == "__main__":
     unittest.main()

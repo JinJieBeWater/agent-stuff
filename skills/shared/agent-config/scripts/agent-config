@@ -71,14 +71,26 @@ class Report:
 
 
 def load_manifest():
-    data = tomllib.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    """The manifest is required: without it apply would undo every exception it holds."""
+    if not MANIFEST.exists():
+        sys.exit(f"{MANIFEST} not found: restore it, or create an empty file to mean no exceptions")
+    data = tomllib.loads(MANIFEST.read_text())
+
+    def names(value, key):
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            sys.exit(f"{MANIFEST}: {key} must be a list of names")
+        return value
+
+    unknown = set(data) - {"explicit_only", "exclude"}
+    if unknown:
+        sys.exit(f"{MANIFEST}: unknown key: {', '.join(sorted(unknown))}")
     exclude = data.get("exclude", {})
-    unknown = set(exclude) - set(HOSTS)
+    unknown = set(exclude) - set(HOSTS) if isinstance(exclude, dict) else {"exclude must be a table"}
     if unknown:
         sys.exit(f"{MANIFEST}: unknown host in [exclude]: {', '.join(sorted(unknown))}")
     return {
-        "explicit_only": list(data.get("explicit_only", [])),
-        "exclude": {h: set(exclude.get(h, [])) for h in HOSTS},
+        "explicit_only": names(data.get("explicit_only", []), "explicit_only"),
+        "exclude": {h: set(names(exclude.get(h, []), f"exclude.{h}")) for h in HOSTS},
     }
 
 
@@ -97,14 +109,15 @@ def raw_target(link):
     return os.path.normpath(os.path.join(os.path.dirname(link), os.readlink(link)))
 
 
-def owned(link, skills):
-    """A host entry is ours when it is a symlink into ~/.agents/skills or to the same dir."""
-    if not link.is_symlink():
-        return False
-    if raw_target(link).startswith(str(AGENTS) + os.sep):
-        return True
+def correct(link, skills):
+    """The host entry resolves to the same directory as ~/.agents/skills/<its name>."""
     real = skills.get(link.name)
-    return real is not None and os.path.realpath(link) == real
+    return link.is_symlink() and real is not None and os.path.realpath(link) == real
+
+
+def dangling_into_agents(link):
+    """A link left behind after its ~/.agents/skills entry was removed."""
+    return link.is_symlink() and not link.exists() and raw_target(link).startswith(str(AGENTS) + os.sep)
 
 
 def check_links(rep, man, skills):
@@ -116,7 +129,7 @@ def check_links(rep, man, skills):
         for name in sorted(live):
             p = root / name
             want = name not in man["exclude"][host]
-            if owned(p, skills):
+            if correct(p, skills):
                 if not want:
                     rep.finding("STALE", host, name, "excluded in manifest", p.unlink)
             elif p.is_symlink() or p.exists():
@@ -127,11 +140,11 @@ def check_links(rep, man, skills):
                 rep.finding("MISSING", host, name, "", lambda p=p, rel=rel: (root.mkdir(parents=True, exist_ok=True), p.symlink_to(rel)))
         if root.is_dir():
             for p in sorted(root.iterdir()):
-                if p.name not in skills and owned(p, skills):
+                if p.name not in skills and dangling_into_agents(p):
                     rep.finding("STALE", host, p.name, "gone from ~/.agents/skills", p.unlink)
     if CODEX.is_dir():
         for p in sorted(CODEX.iterdir()):
-            if skills.get(p.name, "") is not None and owned(p, skills):
+            if correct(p, skills) or dangling_into_agents(p):
                 rep.finding("STALE", "codex", p.name, "Codex reads ~/.agents/skills itself", p.unlink)
 
 
