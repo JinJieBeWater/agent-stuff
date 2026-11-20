@@ -13,6 +13,8 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "agent-config"
+REPO = SCRIPT.parents[4]
+SHARED_AGENTS = REPO / "config/shared/AGENTS.md"
 
 
 def skill(root, name, frontmatter=""):
@@ -35,6 +37,16 @@ class Home:
         for d in (self.src, self.agents, self.claude, self.codex, self.gemini):
             d.mkdir(parents=True)
         self.manifest("")
+        # prompt entry files, wired correctly
+        hm = self.home
+        (hm / ".agents/AGENTS.md").symlink_to(SHARED_AGENTS)
+        (hm / ".codex/AGENTS.md").symlink_to(hm / ".agents/AGENTS.md")
+        (hm / ".pi/agent").mkdir(parents=True)
+        (hm / ".pi/agent/AGENTS.md").symlink_to(SHARED_AGENTS)
+        (hm / ".pi/agent/APPEND_SYSTEM.md").symlink_to(REPO / "config/pi/APPEND_SYSTEM.md")
+        (hm / ".gemini/config/AGENTS.md").symlink_to(SHARED_AGENTS)
+        (hm / ".gemini/GEMINI.md").symlink_to(REPO / "config/antigravity/GEMINI.md")
+        (hm / ".claude/CLAUDE.md").write_text("@~/.agents/AGENTS.md\n\nlocal notes\n")
 
     def add(self, name, frontmatter=""):
         """A skill living in src/, linked into ~/.agents/skills like the real setup."""
@@ -272,6 +284,96 @@ class PolicyTests(unittest.TestCase):
         h.manifest("")
         h.run("apply")
         self.assertEqual(self.settings.read_text(), body)
+
+
+class PiExcludeTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.h = Home(self._tmp.name)
+        self.pi = self.h.home / ".pi/agent/settings.json"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_apply_writes_owned_entries_and_keeps_others(self):
+        h = self.h
+        h.add("show-me")
+        h.add("old")
+        old = f"-{h.agents}/old"
+        self.pi.write_text(json.dumps({"theme": "x", "skills": ["+/elsewhere/x", old]}, indent=2))  # Pi writes no trailing newline
+        h.manifest('[exclude]\npi = ["show-me"]\n')
+        r = h.run("check")
+        self.assertIn("EXCLUDE pi show-me", r.stdout)
+        self.assertIn("EXCLUDE pi old", r.stdout)
+        h.run("apply")
+        text = self.pi.read_text()
+        self.assertFalse(text.endswith("\n"))
+        self.assertEqual(json.loads(text), {"theme": "x", "skills": ["+/elsewhere/x", f"-{h.agents}/show-me"]})
+        self.assertNotIn("pi", h.run("check").stdout)
+
+    def test_tilde_form_counts_as_the_same_entry(self):
+        h = self.h
+        h.add("show-me")
+        self.pi.write_text(json.dumps({"skills": ["-~/.agents/skills/show-me"]}))
+        h.manifest('[exclude]\npi = ["show-me"]\n')
+        self.assertNotIn("EXCLUDE", h.run("check").stdout)
+
+    def test_codex_exclude_is_info_only(self):
+        h = self.h
+        h.add("a")
+        h.manifest('[exclude]\ncodex = ["a"]\n')
+        h.run("apply")
+        r = h.run("check")
+        self.assertIn("INFO codex a", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_unknown_exclude_name_warns(self):
+        h = self.h
+        h.manifest('[exclude]\npi = ["nope"]\n')
+        self.assertIn("WARN manifest nope", h.run("check").stdout)
+
+
+class PromptEntryTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.h = Home(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_correct_entries_are_clean(self):
+        r = self.h.run("check")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("PROMPT", r.stdout)
+
+    def test_missing_entry_is_created_by_apply(self):
+        p = self.h.home / ".codex/AGENTS.md"
+        p.unlink()
+        r = self.h.run("check")
+        self.assertIn("PROMPT codex ~/.codex/AGENTS.md", r.stdout)
+        self.assertEqual(r.returncode, 1)
+        self.h.run("apply")
+        self.assertEqual(os.path.realpath(p), os.path.realpath(SHARED_AGENTS))
+
+    def test_regular_file_in_place_of_link_is_reported_not_replaced(self):
+        p = self.h.home / ".pi/agent/AGENTS.md"
+        p.unlink()
+        p.write_text("my own\n")
+        self.assertIn("PROMPT pi ~/.pi/agent/AGENTS.md", self.h.run("check").stdout)
+        self.h.run("apply")
+        self.assertEqual(p.read_text(), "my own\n")
+
+    def test_antigravity_entries_are_check_only(self):
+        p = self.h.home / ".gemini/GEMINI.md"
+        p.unlink()
+        r = self.h.run("apply")
+        self.assertIn("PROMPT antigravity ~/.gemini/GEMINI.md", r.stdout)
+        self.assertIn("sync.sh", r.stdout)
+        self.assertFalse(p.is_symlink())
+
+    def test_claude_md_without_import_is_reported(self):
+        (self.h.home / ".claude/CLAUDE.md").write_text("nothing\n")
+        self.assertIn("PROMPT claude ~/.claude/CLAUDE.md", self.h.run("check").stdout)
 
 
 if __name__ == "__main__":
