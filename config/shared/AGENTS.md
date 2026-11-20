@@ -25,8 +25,16 @@
 ## 动手前
 
 - 动作匹配我当前的模式：讨论只读，实施遵循确认的目标与范围，验收评判已有结果；模式由我切换。
-- 改 agent 会读取并遵循的文本（skill 及其引用文件、AGENTS.md、prompt、子 agent 定义、工作流指令，含一行小改）前，先读 `~/.agents/skills/writing-for-agents/SKILL.md`；对象是 skill（含移植）时再读 `~/.agents/skills/skill-creator/SKILL.md`。全文已在上下文则不必重读。
 - 第三方工具和上游 skill 用原生配置定制，保留官方文件；改工作流、改源码、fork 或提上游 PR 先问我。
+
+## 先读的 skill
+
+任务落进下列场景时，动笔前读对应的 `SKILL.md` 并照做；全文已在上下文则不必重读。
+
+- **agent 指令**：改写或审阅 agent 会读取并遵循的文本，含一行小改：skill 及其引用文件、AGENTS.md / CLAUDE.md / GEMINI.md、系统提示词及其追加文件、子 agent 定义、工具描述、代码里拼给模型的 prompt、工作流指令 → `~/.agents/skills/writing-for-agents/SKILL.md`；对象是 skill（含移植）时再读 `~/.agents/skills/skill-creator/SKILL.md`。
+- **模块结构**：定或改模块接口、拆分合并模块、决定 seam 放哪、为可测性调整结构，或写含模块划分的方案 → `~/.agents/skills/codebase-design/SKILL.md`。
+- **领域术语**：给领域概念命名或改名、澄清术语歧义、写或改 `GLOSSARY.md`、记录 ADR → `~/.agents/skills/domain-modeling/SKILL.md`。
+- **留存成文**：写或改会留存给人读的文字（README、文档、PR 或 issue 描述、报告），交付前按它逐条过一遍，中文用其中适用的条目 → `~/.agents/skills/unslop/SKILL.md`。
 
 ## 开发环境
 
