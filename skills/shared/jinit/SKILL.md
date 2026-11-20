@@ -1,39 +1,39 @@
 ---
 name: jinit
-description: "项目外层初始化。用于新建项目（可配 better-t-stack 脚手架），或给已有仓库套一层同名外层文件夹：接上 `.workspace` 软链，写入 T3 Code 风格的 AGENTS.md。"
+description: "Project outer-folder setup. Use when starting a new project (optionally scaffolded with better-t-stack) or wrapping an existing repo in a same-named outer folder: links `.workspace` to it and writes a T3 Code-style AGENTS.md."
 ---
 
 # jinit
 
-外层 `<路径>/foo/` 是不进 git 的普通文件夹，仓库在 `<路径>/foo/foo`，仓库根目录的 `.workspace` 软链到外层。
+The outer folder `<path>/foo/` is a plain folder outside git. The repo lives at `<path>/foo/foo`, and `.workspace` at the repo root symlinks to the outer folder.
 
-## 1. 定位外层和仓库
+## 1. Locate the outer folder and the repo
 
-新仓库：
+New repo:
 
-1. 和用户确认外层路径和项目名，两者同名。
-2. 确认脚手架命令。用户只描述了技术栈时，运行 `bunx create-better-t-stack@latest create --help`，按当前选项拼出完整命令请用户确认；每个选项都给值，漏掉的会让 CLI 停下来交互提问。
-3. 在外层里执行脚手架，生成到 `<外层>/<项目名>`；不用脚手架就建这个空目录。没有 `.git` 时运行 `git init`。
+1. Confirm the outer path and project name with the user; the outer folder and the repo share the name.
+2. Confirm the scaffold command. When the user only described a stack, run `bunx create-better-t-stack@latest create --help` and build the full command from the current options for the user to confirm. Give every option a value: a missing one makes the CLI stop and prompt.
+3. Run the scaffold inside the outer folder so it generates `<outer>/<name>`; without a scaffold, create that empty directory. Run `git init` if there is no `.git`.
 
-已有仓库：仓库原地不动。父目录和仓库同名时，父目录就是外层；否则用用户给的路径。
+Existing repo: the repo stays where it is. If its parent folder has the same name, the parent is the outer folder; otherwise use the path the user gives.
 
-## 2. 连接外层
+## 2. Link the outer folder
 
-1. 仓库根目录建 `.workspace -> <外层绝对路径>`，在 `git rev-parse --git-path info/exclude` 指向的文件里加一行 `/.workspace`。
-2. 外层路径要追加进 `~/.claude/settings.json` 的 `permissions.additionalDirectories`，和 `~/.codex/config.toml` 里 `[sandbox_workspace_write]` 的 `writable_roots`，已有就跳过。这是全局配置：写入前停下，在回复里列出每个文件要加的内容，用户同意后再写。
-3. 外层包含仓库本身，vitest 会顺着 `.workspace` 把测试再跑一遍。仓库用 vitest 时，把 `**/.workspace/**` 连同默认的 `**/node_modules/**`、`**/.git/**` 加进 `test.exclude`。
+1. Create `.workspace -> <absolute outer path>` at the repo root, and add `/.workspace` to the file `git rev-parse --git-path info/exclude` prints.
+2. The outer path goes into `permissions.additionalDirectories` in `~/.claude/settings.json` and into `writable_roots` under `[sandbox_workspace_write]` in `~/.codex/config.toml`; skip a file that already has it. These are global configs: stop before writing, list what each file gains in your reply, and write once the user agrees.
+3. The outer folder contains the repo, so vitest follows `.workspace` and runs every test twice. If the repo uses vitest, add `**/.workspace/**` to `test.exclude` along with the defaults `**/node_modules/**` and `**/.git/**`.
 
-完成：`readlink .workspace` 输出外层路径，`git status` 里没有 `.workspace`。
+Done: `readlink .workspace` prints the outer path, and `git status` lists no `.workspace`.
 
-## 3. 写 AGENTS.md
+## 3. Write AGENTS.md
 
-- 没有指令文件：复制 [assets/AGENTS.md](assets/AGENTS.md) 到仓库根目录，用英文填 `<!-- fill: … -->` 槽位。只写查不到的：没写下来的约定、选择背后的理由、配置里看不出的坑。删掉不适用于这个技术栈的规则和填完仍为空的章节；保留的规则一字不改。
-- 已有 AGENTS.md、CLAUDE.md、`.cursorrules` 这类指令文件：内容按模板组织并进一份 AGENTS.md，和模板重复的保留模板原文，冲突的逐条问用户。并完删掉其他指令文件：Claude Code 只要看到 CLAUDE.md 就不加载 AGENTS.md。
+- No instruction file: copy [assets/AGENTS.md](assets/AGENTS.md) to the repo root and fill the `<!-- fill: … -->` slots in English. Write only what a lookup can't find: unwritten conventions, the reasons behind choices, gotchas no config confesses. Delete rules that don't apply to this stack and sections still empty after filling; keep the remaining rules word for word.
+- Existing instruction files (AGENTS.md, CLAUDE.md, `.cursorrules` and the like): merge their content into one AGENTS.md organized by the template. Where they repeat the template, keep the template's wording; ask the user about each conflict. Then delete the other instruction files: Claude Code skips AGENTS.md whenever a CLAUDE.md exists.
 
-完成：仓库里的指令文件只有 AGENTS.md，`grep -c '<!-- fill' AGENTS.md` 为 0。
+Done: AGENTS.md is the repo's only instruction file, and `grep -c '<!-- fill' AGENTS.md` prints 0.
 
-## 4. 提交
+## 4. Commit
 
-提交前停下，在回复里贴出 `git status --short` 和 AGENTS.md 里填写、合并进来的内容，用户同意后提交 `chore: add agent layer`。
+Stop before committing: post `git status --short` and the content you filled in or merged into AGENTS.md, then commit `chore: add agent layer` once the user agrees.
 
-完成：`git status` 干净，最新提交是 `chore: add agent layer`。
+Done: `git status` is clean, and the latest commit is `chore: add agent layer`.
