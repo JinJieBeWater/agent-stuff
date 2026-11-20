@@ -7,7 +7,6 @@
 | Shared skill                                                                   | Job                                                                          |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | [agent-config](shared/agent-config/SKILL.md)                                   | Keep skill links, manual-only policy and prompt entries in step across hosts |
-| [audit-neighbor](shared/audit-neighbor/SKILL.md)                               | Herdr session audit; explicit invocation only, including Codex policy        |
 | [babysit-pr](shared/babysit-pr/SKILL.md)                                       | Monitor GitHub/Gitea PRs                                                     |
 | [diagnose-pi-internals](shared/diagnose-pi-internals/SKILL.md)                 | Diagnose Pi runtime faults from any host                                     |
 | [herdr-session-recovery](shared/herdr-session-recovery/SKILL.md)               | Recover saved Herdr Core agents, relationships and attention state           |
