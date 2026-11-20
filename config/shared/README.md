@@ -22,6 +22,7 @@
 ## 本机整理与边界
 
 - 共同规则只写在 AGENTS.md，写成任何宿主都能执行的说法：skill 用 `~/.agents/skills/<name>/SKILL.md` 路径引用，提问约定不绑定工具名称。只在 Pi 成立的工具名和路径写进 APPEND_SYSTEM.md，不在两处重复同一条。通用版不规定 skill 搜索或兜底查找机制，也不引入 Ryugi、Ponytail 的整套工作流。
+- 写测试、代码风格、项目文档和 PR 格式的约定只在项目 AGENTS.md 里，由 [jinit 模板](../../skills/shared/jinit/assets/AGENTS.md)带入，全局只留对所有任务都成立的规则。坑：Ryugi 在各宿主都是 full 模式，没有这份项目文件的仓库会按 `ryugi:test-driven-development` 的默认来，也就是每处改动先写测试、每次跑全套。
 - 项目里的 `.pi/APPEND_SYSTEM.md` 会整份顶替全局的 APPEND_SYSTEM.md，两者不合并；启动时带 `--append-system-prompt` 同样会跳过它。项目需要追加时，把 Pi 增量一并写进项目文件。
 - KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力。KVM 重活由共享 skill `kvm-offload` 承担，目录布局以 KVM 上的 `~/work/README.md` 为准，skill 不缓存路径；OmniWM 在通用版保留使用原则。项目的本机环境约定写进用到它的 skill 或项目外层目录的 AGENTS.md，不进全局指令。
 - 本次从 Pi 安装来源暴露的通用 skill、依赖和未导出原因见[审计清单](../../docs/pi-shared-skills-audit-2026-11-09.md)。上游目录原样保留，整个目录软链，不复制 SKILL.md。
