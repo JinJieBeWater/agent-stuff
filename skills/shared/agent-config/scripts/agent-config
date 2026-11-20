@@ -134,7 +134,7 @@ def check_links(rep, man, skills):
                     rep.finding("STALE", host, name, "excluded in manifest", p.unlink)
             elif p.is_symlink() or p.exists():
                 if want:
-                    rep.finding("FOREIGN", host, name, f"{'-> ' + os.readlink(p) if p.is_symlink() else 'real directory'}; not touched")
+                    rep.finding("FOREIGN", host, name, f"{'-> ' + os.readlink(p) if p.is_symlink() else 'real directory' if p.is_dir() else 'regular file'}; not touched")
             elif want:
                 rel = os.path.relpath(AGENTS / name, root)
                 rep.finding("MISSING", host, name, "", lambda p=p, rel=rel: (root.mkdir(parents=True, exist_ok=True), p.symlink_to(rel)))
@@ -154,12 +154,8 @@ def frontmatter_hidden(skill_dir):
     return bool(m and re.search(r"^disable-model-invocation:\s*true\s*$", m.group(1), re.M))
 
 
-def codex_skill_dirs(skills):
-    """name -> real dir for each skill whose Codex policy this script sets.
-
-    Codex's own ~/.codex/skills/.system is left out: Codex rewrites it on every launch.
-    """
-    return {n: Path(r) for n, r in skills.items() if r is not None}
+YAML_MANUAL = object()  # the file's policy: line is not a plain block; a human edits it
+POLICY_BLOCK = re.compile(r"^policy:[ \t]*(#.*)?$")
 
 
 def yaml_wanted(cur, hide):
@@ -175,12 +171,14 @@ def yaml_wanted(cur, hide):
         return re.sub(r"^policy:[ \t]*\n(?![ \t]+\S)", "", base, flags=re.M)
     if re.search(r"^\s+allow_implicit_invocation:\s*false\b", base, re.M):
         return base
+    if any(l.startswith("policy:") and not POLICY_BLOCK.match(l.rstrip("\n")) for l in lines):
+        return YAML_MANUAL
     out, done = [], False
     for l in lines:
         if re.match(r"^\s+allow_implicit_invocation:", l):
             l = "#" + l.rstrip("\n") + f"  {MARK}-orig\n"
         out.append(l)
-        if not done and re.match(r"^policy:\s*$", l):
+        if not done and POLICY_BLOCK.match(l.rstrip("\n")):
             out.append(YAML_LINE)
             done = True
     text = "".join(out)
@@ -232,15 +230,15 @@ def write_json(path, data):
 
 def check_policy(rep, man, skills):
     manifest = man["explicit_only"]
-    codex_dirs = codex_skill_dirs(skills)
+    # Codex's own ~/.codex/skills/.system is left out: Codex rewrites it on every launch.
+    live = {n: Path(r) for n, r in skills.items() if r is not None}
     for name in manifest:
-        if name not in codex_dirs:
+        if name not in live:
             rep.note("WARN", "manifest", name, "explicit_only name not found in ~/.agents/skills")
 
     # Claude: skillOverrides keys are directory names; only ~/.agents names are ours.
     settings = read_json(CLAUDE_SETTINGS)
     ov = settings.get("skillOverrides", {})
-    live = {n for n, r in skills.items() if r is not None}
     for name in sorted(live):
         want = name in manifest and name not in man["exclude"]["claude"]
         if want and name not in ov:
@@ -249,18 +247,21 @@ def check_policy(rep, man, skills):
             rep.finding("POLICY", "claude", name, "skillOverrides entry no longer in manifest", lambda n=name: edit_overrides(n, None))
 
     # Codex: agents/openai.yaml inside each skill dir.
-    for name, d in sorted(codex_dirs.items()):
+    for name, d in sorted(live.items()):
         hide = name in manifest or frontmatter_hidden(d)
         y = d / "agents/openai.yaml"
         cur = y.read_text() if y.exists() else None
         new = yaml_wanted(cur, hide)
+        if new is YAML_MANUAL:
+            rep.finding("POLICY", "codex", name, f"policy: in {y} is not a plain block; set allow_implicit_invocation: false by hand")
+            continue
         if new == cur or (cur is None and new is None):
             continue
         rep.finding("POLICY", "codex", name, f"{'hide' if hide else 'restore'} in {y}", lambda y=y, new=new: write_yaml(y, new))
 
     # Pi and Antigravity only read SKILL.md frontmatter.
     for name in manifest:
-        if name in live and not frontmatter_hidden(skills[name]):
+        if name in live and not frontmatter_hidden(live[name]):
             for host in ("pi", "antigravity"):
                 if name not in man["exclude"][host]:
                     rep.note("INFO", host, name, "no host setting hides it; add disable-model-invocation to SKILL.md to hide")

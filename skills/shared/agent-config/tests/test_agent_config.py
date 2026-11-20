@@ -230,6 +230,33 @@ class PolicyTests(unittest.TestCase):
         h.run("apply")
         self.assertEqual(self.yaml("m"), orig)
 
+    def test_policy_line_with_comment_gets_no_second_block(self):
+        h = self.h
+        real = h.add("m")
+        (real / "agents").mkdir()
+        orig = "policy:  # mine\n  allow_implicit_invocation: true\n"
+        (real / "agents/openai.yaml").write_text(orig)
+        h.manifest('explicit_only = ["m"]\n')
+        h.run("apply")
+        text = self.yaml("m")
+        self.assertEqual(text.count("policy:"), 1, text)
+        self.assertIn("allow_implicit_invocation: false  # codex-skill-policy", text)
+        h.manifest("")
+        h.run("apply")
+        self.assertEqual(self.yaml("m"), orig)
+
+    def test_flow_style_policy_is_reported_and_left_alone(self):
+        h = self.h
+        real = h.add("m")
+        (real / "agents").mkdir()
+        orig = "policy: {allow_implicit_invocation: true}\n"
+        (real / "agents/openai.yaml").write_text(orig)
+        h.manifest('explicit_only = ["m"]\n')
+        r = h.run("apply")
+        self.assertIn("POLICY codex m", r.stdout)
+        self.assertIn("by hand", r.stdout)
+        self.assertEqual(self.yaml("m"), orig)
+
     def test_frontmatter_declared_skill_needs_no_claude_key_but_gets_codex_policy(self):
         h = self.h
         h.add("f", "disable-model-invocation: true\n")
@@ -432,6 +459,12 @@ class WrongTargetTests(unittest.TestCase):
         r = h.run("apply")
         self.assertIn("FOREIGN claude a", r.stdout)
         self.assertEqual(os.readlink(h.claude / "a"), "../../.agents/skills/b")
+
+    def test_regular_file_is_described_as_a_file(self):
+        h = self.h
+        h.add("a")
+        (h.claude / "a").write_text("x")
+        self.assertIn("FOREIGN claude a  regular file", h.run("check").stdout)
 
     def test_alias_link_with_its_own_name_is_kept(self):
         h = self.h
