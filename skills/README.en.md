@@ -10,6 +10,7 @@
 | [babysit-pr](shared/babysit-pr/SKILL.md)                                       | Monitor GitHub/Gitea PRs                                              |
 | [diagnose-pi-internals](shared/diagnose-pi-internals/SKILL.md)                 | Diagnose Pi runtime faults from any host                              |
 | [herdr-session-recovery](shared/herdr-session-recovery/SKILL.md)               | Recover saved Herdr Core agents, relationships and attention state    |
+| [jinit](shared/jinit/SKILL.md)                                                 | Project shell: outer folder, `.workspace` link and agent layer        |
 | [pi-magpie-same-model-failover](shared/pi-magpie-same-model-failover/SKILL.md) | Configure and verify Magpie fallback within the selected model        |
 | [show-me](shared/show-me/SKILL.md)                                             | Visual explanations; shared version requires explicit invocation      |
 
