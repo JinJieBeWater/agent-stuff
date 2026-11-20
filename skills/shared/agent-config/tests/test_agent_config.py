@@ -164,5 +164,115 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
 
 
+class PolicyTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.h = Home(self._tmp.name)
+        self.settings = self.h.home / ".claude/settings.json"
+        self.settings.write_text(json.dumps({"model": "opus", "skillOverrides": {"code-review": "user-invocable-only"}}, indent=2) + "\n")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def overrides(self):
+        return json.loads(self.settings.read_text()).get("skillOverrides", {})
+
+    def yaml(self, name):
+        p = self.h.src / name / "agents/openai.yaml"
+        return p.read_text() if p.exists() else None
+
+    def test_manifest_skill_gets_claude_override_and_codex_policy(self):
+        h = self.h
+        h.add("m")
+        h.manifest('explicit_only = ["m"]\n')
+        r = h.run("check")
+        self.assertIn("POLICY claude m", r.stdout)
+        self.assertIn("POLICY codex m", r.stdout)
+        self.assertEqual(r.returncode, 1)
+        h.run("apply")
+        self.assertEqual(self.overrides(), {"code-review": "user-invocable-only", "m": "user-invocable-only"})
+        self.assertIn("allow_implicit_invocation: false  # codex-skill-policy", self.yaml("m"))
+        self.assertEqual(json.loads(self.settings.read_text())["model"], "opus")
+        self.assertEqual(h.run("check").returncode, 0, h.run("check").stdout)
+
+    def test_dropping_from_manifest_restores_both_hosts(self):
+        h = self.h
+        h.add("m")
+        h.manifest('explicit_only = ["m"]\n')
+        h.run("apply")
+        h.manifest("")
+        h.run("apply")
+        self.assertEqual(self.overrides(), {"code-review": "user-invocable-only"})
+        self.assertIsNone(self.yaml("m"))
+
+    def test_existing_yaml_keeps_its_own_lines_on_hide_and_restore(self):
+        h = self.h
+        real = h.add("m")
+        (real / "agents").mkdir()
+        orig = "interface:\n  display_name: M\npolicy:\n  allow_implicit_invocation: true\n"
+        (real / "agents/openai.yaml").write_text(orig)
+        h.manifest('explicit_only = ["m"]\n')
+        h.run("apply")
+        self.assertIn("allow_implicit_invocation: false  # codex-skill-policy", self.yaml("m"))
+        h.manifest("")
+        h.run("apply")
+        self.assertEqual(self.yaml("m"), orig)
+
+    def test_frontmatter_declared_skill_needs_no_claude_key_but_gets_codex_policy(self):
+        h = self.h
+        h.add("f", "disable-model-invocation: true\n")
+        r = h.run("check")
+        self.assertNotIn("POLICY claude f", r.stdout)
+        self.assertIn("POLICY codex f", r.stdout)
+        h.run("apply")
+        self.assertNotIn("f", self.overrides())
+
+    def test_unmarked_false_policy_is_left_alone(self):
+        h = self.h
+        real = h.add("f", "disable-model-invocation: true\n")
+        (real / "agents").mkdir()
+        (real / "agents/openai.yaml").write_text("policy:\n  allow_implicit_invocation: false\n")
+        r = h.run("check")
+        self.assertNotIn("codex f", r.stdout)
+
+    def test_codex_system_skill_can_be_hidden(self):
+        h = self.h
+        sysdir = skill(h.codex / ".system", "skill-installer")
+        h.manifest('explicit_only = ["skill-installer"]\n')
+        h.run("apply")
+        self.assertIn("codex-skill-policy", (sysdir / "agents/openai.yaml").read_text())
+        self.assertNotIn("skill-installer", self.overrides())
+
+    def test_unknown_manifest_name_warns(self):
+        h = self.h
+        h.manifest('explicit_only = ["nope"]\n')
+        r = h.run("check")
+        self.assertIn("WARN manifest nope", r.stdout)
+        self.assertEqual(r.returncode, 0)
+
+    def test_manifest_only_names_are_info_gaps_for_pi_and_antigravity(self):
+        h = self.h
+        h.add("m")
+        h.add("f", "disable-model-invocation: true\n")
+        h.manifest('explicit_only = ["m", "f"]\n')
+        h.run("apply")
+        r = h.run("check")
+        self.assertIn("INFO pi m", r.stdout)
+        self.assertIn("INFO antigravity m", r.stdout)
+        self.assertNotIn("INFO pi f", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_settings_formatting_is_preserved(self):
+        h = self.h
+        h.add("m")
+        h.manifest('explicit_only = ["m"]\n')
+        body = '{\n  "model": "opus",\n  "note": "中文",\n  "skillOverrides": {\n    "code-review": "user-invocable-only"\n  }\n}\n'
+        self.settings.write_text(body)
+        h.run("apply")
+        h.manifest("")
+        h.run("apply")
+        self.assertEqual(self.settings.read_text(), body)
+
+
 if __name__ == "__main__":
     unittest.main()

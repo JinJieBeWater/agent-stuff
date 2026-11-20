@@ -15,7 +15,10 @@ Output: one line per finding, `TAG host name  detail`. Tags: MISSING, STALE, FOR
 BROKEN, POLICY, PROMPT (drift) and INFO, WARN (no exit code effect). apply prefixes
 fixed lines with FIXED, dry-run with WOULD. Start a new host session to see changes.
 """
+import json
 import os
+import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -25,6 +28,11 @@ AGENTS = HOME / ".agents/skills"
 MANIFEST = HOME / ".config/agent-config/skills.toml"
 LINK_HOSTS = {"claude": HOME / ".claude/skills", "antigravity": HOME / ".gemini/config/skills"}
 CODEX = HOME / ".codex/skills"
+CLAUDE_SETTINGS = HOME / ".claude/settings.json"
+CLAUDE_HIDE = "user-invocable-only"
+MARK = "# codex-skill-policy"  # kept from the old codex-skill-policy script so its edits stay ours
+YAML_HEADER = f"{MARK}: managed file\n"
+YAML_LINE = f"  allow_implicit_invocation: false  {MARK}\n"
 HOSTS = ("claude", "codex", "pi", "antigravity")
 
 
@@ -113,6 +121,135 @@ def check_links(rep, man, skills):
                 rep.finding("STALE", "codex", p.name, "Codex reads ~/.agents/skills itself", p.unlink)
 
 
+def frontmatter_hidden(skill_dir):
+    text = (Path(skill_dir) / "SKILL.md").read_text(errors="replace")
+    m = re.search(r"^---\s*\n(.*?)\n---", text, re.S)
+    return bool(m and re.search(r"^disable-model-invocation:\s*true\s*$", m.group(1), re.M))
+
+
+def codex_skill_dirs(skills):
+    """name -> real dir for every skill Codex loads that this script may set policy on."""
+    out = {n: Path(r) for n, r in skills.items() if r is not None}
+    system = CODEX / ".system"
+    if system.is_dir():
+        for p in sorted(system.iterdir()):
+            if (p / "SKILL.md").is_file():
+                out.setdefault(p.name, Path(os.path.realpath(p)))
+    return out
+
+
+def yaml_wanted(cur, hide):
+    """The openai.yaml text we want given the current text (None = absent); "" = delete."""
+    if cur is None:
+        return YAML_HEADER + "policy:\n" + YAML_LINE if hide else None
+    if cur.startswith(YAML_HEADER):
+        return cur if hide else ""
+    lines = [l for l in cur.splitlines(keepends=True) if not l.rstrip("\n").endswith(MARK)]
+    base = "".join(lines)
+    if not hide:
+        base = re.sub(rf"^#(\s+allow_implicit_invocation:.*?)  {MARK}-orig$", r"\1", base, flags=re.M)
+        return re.sub(r"^policy:[ \t]*\n(?![ \t]+\S)", "", base, flags=re.M)
+    if re.search(r"^\s+allow_implicit_invocation:\s*false\b", base, re.M):
+        return base
+    out, done = [], False
+    for l in lines:
+        if re.match(r"^\s+allow_implicit_invocation:", l):
+            l = "#" + l.rstrip("\n") + f"  {MARK}-orig\n"
+        out.append(l)
+        if not done and re.match(r"^policy:\s*$", l):
+            out.append(YAML_LINE)
+            done = True
+    text = "".join(out)
+    if not done:
+        text = text.rstrip("\n") + ("\n" if text.strip() else "") + "policy:\n" + YAML_LINE
+    return text
+
+
+def git_exclude(path):
+    """Keep a written openai.yaml out of `git status` in an upstream checkout."""
+    d = str(path.parent)
+    top = subprocess.run(["git", "-C", d, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode:
+        return
+    if subprocess.run(["git", "-C", d, "ls-files", "--error-unmatch", str(path)], capture_output=True).returncode == 0:
+        return
+    ex = subprocess.run(["git", "-C", d, "rev-parse", "--git-path", "info/exclude"], capture_output=True, text=True).stdout.strip()
+    ex = Path(ex) if os.path.isabs(ex) else Path(d) / ex
+    rel = "/" + os.path.relpath(path, top.stdout.strip())
+    cur = ex.read_text() if ex.exists() else ""
+    if rel not in cur.splitlines():
+        ex.parent.mkdir(parents=True, exist_ok=True)
+        ex.write_text(cur + ("" if cur.endswith("\n") or not cur else "\n") + rel + "\n")
+
+
+def write_yaml(path, text):
+    if text == "":
+        path.unlink()
+        try:
+            path.parent.rmdir()
+        except OSError:
+            pass
+        return
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(text)
+    git_exclude(path)
+
+
+def read_json(path):
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def check_policy(rep, man, skills):
+    manifest = man["explicit_only"]
+    codex_dirs = codex_skill_dirs(skills)
+    for name in manifest:
+        if name not in codex_dirs:
+            rep.note("WARN", "manifest", name, "explicit_only name not found in ~/.agents/skills or ~/.codex/skills/.system")
+
+    # Claude: skillOverrides keys are directory names; only ~/.agents names are ours.
+    settings = read_json(CLAUDE_SETTINGS)
+    ov = settings.get("skillOverrides", {})
+    live = {n for n, r in skills.items() if r is not None}
+    for name in sorted(live):
+        want = name in manifest and name not in man["exclude"]["claude"]
+        if want and name not in ov:
+            rep.finding("POLICY", "claude", name, f'skillOverrides -> "{CLAUDE_HIDE}"', lambda n=name: edit_overrides(n, CLAUDE_HIDE))
+        elif not want and ov.get(name) == CLAUDE_HIDE:
+            rep.finding("POLICY", "claude", name, "skillOverrides entry no longer in manifest", lambda n=name: edit_overrides(n, None))
+
+    # Codex: agents/openai.yaml inside each skill dir.
+    for name, d in sorted(codex_dirs.items()):
+        hide = name in manifest or frontmatter_hidden(d)
+        y = d / "agents/openai.yaml"
+        cur = y.read_text() if y.exists() else None
+        new = yaml_wanted(cur, hide)
+        if new == cur or (cur is None and new is None):
+            continue
+        rep.finding("POLICY", "codex", name, f"{'hide' if hide else 'restore'} in {y}", lambda y=y, new=new: write_yaml(y, new))
+
+    # Pi and Antigravity only read SKILL.md frontmatter.
+    for name in manifest:
+        if name in live and not frontmatter_hidden(skills[name]):
+            for host in ("pi", "antigravity"):
+                if name not in man["exclude"][host]:
+                    rep.note("INFO", host, name, "no host setting hides it; add disable-model-invocation to SKILL.md to hide")
+
+
+def edit_overrides(name, value):
+    settings = read_json(CLAUDE_SETTINGS)
+    ov = settings.setdefault("skillOverrides", {})
+    if value is None:
+        ov.pop(name, None)
+    else:
+        ov[name] = value
+    write_json(CLAUDE_SETTINGS, settings)
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
     if cmd not in ("check", "apply"):
@@ -122,6 +259,7 @@ def main(argv):
     man = load_manifest()
     skills = agents_skills()
     check_links(rep, man, skills)
+    check_policy(rep, man, skills)
     if mode == "check":
         print("ok" if not rep.drift else f"{rep.drift} finding(s)")
         return 1 if rep.drift else 0
