@@ -32,20 +32,12 @@
 
 ## 恢复
 
-先按原来源安装 skill 与所需工具，再链接；软链指向的源必须存在。下面是尚未建立入口时的命令，已有文件先对比合并，不直接覆盖：
-
-```sh
-ln -s ~/my/pi-stuff/config/shared/AGENTS.md ~/.agents/AGENTS.md
-ln -s ~/my/pi-stuff/config/shared/AGENTS.md ~/.pi/agent/AGENTS.md
-ln -s ~/my/pi-stuff/config/pi/APPEND_SYSTEM.md ~/.pi/agent/APPEND_SYSTEM.md
-```
-
-各 skill 的源路径见审计清单；目录软链例如：
+先按原来源安装 skill 与所需工具，把每个 skill 软链进 `~/.agents/skills/<目录名>`（源路径见审计清单），例如：
 
 ```sh
 ln -s ~/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator ~/.agents/skills/skill-creator
-ln -s ../../.agents/skills/skill-creator ~/.codex/skills/skill-creator
-ln -s ../../.agents/skills/skill-creator ~/.claude/skills/skill-creator
 ```
+
+其余入口交给 [agent-config](../../skills/shared/agent-config/SKILL.md)：`skills/shared/agent-config/scripts/agent-config check` 列出缺的宿主链接、仅手动调用策略和提示词入口，`apply` 补齐其中归它管的部分，已有的普通文件和指向别处的链接只报告不覆盖。例外名单在 `~/.config/agent-config/skills.toml`，不入库。Antigravity 的 GEMINI.md、T3 profile 和 MCP 仍由 `config/antigravity/sync.sh` 处理。
 
 这些入口只在当前机器生效；换机器需重新安装来源并调整路径。卸载 Pi 包或移动仓库会使相应软链失效。更新后重开目标 agent 会话；现有会话已经加载的指令不会自动刷新。

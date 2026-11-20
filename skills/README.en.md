@@ -4,15 +4,16 @@
 
 `shared/` holds skills usable across hosts; `pi/` holds Pi adaptations. The root Pi manifest still registers only Pi show-me. See the [cross-agent setup](../config/shared/README.md) (Chinese) for local entry points and shared skills from other sources.
 
-| Shared skill                                                                   | Job                                                                   |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| [audit-neighbor](shared/audit-neighbor/SKILL.md)                               | Herdr session audit; explicit invocation only, including Codex policy |
-| [babysit-pr](shared/babysit-pr/SKILL.md)                                       | Monitor GitHub/Gitea PRs                                              |
-| [diagnose-pi-internals](shared/diagnose-pi-internals/SKILL.md)                 | Diagnose Pi runtime faults from any host                              |
-| [herdr-session-recovery](shared/herdr-session-recovery/SKILL.md)               | Recover saved Herdr Core agents, relationships and attention state    |
-| [jinit](shared/jinit/SKILL.md)                                                 | Project shell: outer folder, `.workspace` link and agent layer        |
-| [pi-magpie-same-model-failover](shared/pi-magpie-same-model-failover/SKILL.md) | Configure and verify Magpie fallback within the selected model        |
-| [show-me](shared/show-me/SKILL.md)                                             | Visual explanations; shared version requires explicit invocation      |
+| Shared skill                                                                   | Job                                                                          |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [agent-config](shared/agent-config/SKILL.md)                                   | Keep skill links, manual-only policy and prompt entries in step across hosts |
+| [audit-neighbor](shared/audit-neighbor/SKILL.md)                               | Herdr session audit; explicit invocation only, including Codex policy        |
+| [babysit-pr](shared/babysit-pr/SKILL.md)                                       | Monitor GitHub/Gitea PRs                                                     |
+| [diagnose-pi-internals](shared/diagnose-pi-internals/SKILL.md)                 | Diagnose Pi runtime faults from any host                                     |
+| [herdr-session-recovery](shared/herdr-session-recovery/SKILL.md)               | Recover saved Herdr Core agents, relationships and attention state           |
+| [jinit](shared/jinit/SKILL.md)                                                 | Project shell: outer folder, `.workspace` link and agent layer               |
+| [pi-magpie-same-model-failover](shared/pi-magpie-same-model-failover/SKILL.md) | Configure and verify Magpie fallback within the selected model               |
+| [show-me](shared/show-me/SKILL.md)                                             | Visual explanations; shared version requires explicit invocation             |
 
 ## show-me
 

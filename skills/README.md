@@ -6,6 +6,7 @@
 
 | 通用 skill                                                                     | 用途                                               |
 | ------------------------------------------------------------------------------ | -------------------------------------------------- |
+| [agent-config](shared/agent-config/SKILL.md)                                   | 跨宿主维护 skill 链接、仅手动调用策略和提示词入口  |
 | [audit-neighbor](shared/audit-neighbor/SKILL.md)                               | Herdr 旁路审计；仅显式调用，包含 Codex 调用策略    |
 | [babysit-pr](shared/babysit-pr/SKILL.md)                                       | 跟踪 GitHub/Gitea PR                               |
 | [diagnose-pi-internals](shared/diagnose-pi-internals/SKILL.md)                 | 从任意宿主排查 Pi 运行故障                         |
