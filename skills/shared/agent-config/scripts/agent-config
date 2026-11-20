@@ -142,14 +142,11 @@ def frontmatter_hidden(skill_dir):
 
 
 def codex_skill_dirs(skills):
-    """name -> real dir for every skill Codex loads that this script may set policy on."""
-    out = {n: Path(r) for n, r in skills.items() if r is not None}
-    system = CODEX / ".system"
-    if system.is_dir():
-        for p in sorted(system.iterdir()):
-            if (p / "SKILL.md").is_file():
-                out.setdefault(p.name, Path(os.path.realpath(p)))
-    return out
+    """name -> real dir for each skill whose Codex policy this script sets.
+
+    Codex's own ~/.codex/skills/.system is left out: Codex rewrites it on every launch.
+    """
+    return {n: Path(r) for n, r in skills.items() if r is not None}
 
 
 def yaml_wanted(cur, hide):
@@ -225,7 +222,7 @@ def check_policy(rep, man, skills):
     codex_dirs = codex_skill_dirs(skills)
     for name in manifest:
         if name not in codex_dirs:
-            rep.note("WARN", "manifest", name, "explicit_only name not found in ~/.agents/skills or ~/.codex/skills/.system")
+            rep.note("WARN", "manifest", name, "explicit_only name not found in ~/.agents/skills")
 
     # Claude: skillOverrides keys are directory names; only ~/.agents names are ours.
     settings = read_json(CLAUDE_SETTINGS)

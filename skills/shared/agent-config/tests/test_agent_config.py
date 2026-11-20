@@ -247,13 +247,14 @@ class PolicyTests(unittest.TestCase):
         r = h.run("check")
         self.assertNotIn("codex f", r.stdout)
 
-    def test_codex_system_skill_can_be_hidden(self):
+    def test_codex_system_skills_are_left_alone(self):
+        # Codex rewrites ~/.codex/skills/.system on every launch, so a policy there never sticks.
         h = self.h
         sysdir = skill(h.codex / ".system", "skill-installer")
         h.manifest('explicit_only = ["skill-installer"]\n')
-        h.run("apply")
-        self.assertIn("codex-skill-policy", (sysdir / "agents/openai.yaml").read_text())
-        self.assertNotIn("skill-installer", self.overrides())
+        r = h.run("apply")
+        self.assertFalse((sysdir / "agents/openai.yaml").exists())
+        self.assertIn("WARN manifest skill-installer", r.stdout)
 
     def test_unknown_manifest_name_warns(self):
         h = self.h
