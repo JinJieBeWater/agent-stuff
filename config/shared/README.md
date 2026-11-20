@@ -40,9 +40,9 @@ ln -s ~/my/pi-stuff/config/shared/AGENTS.md ~/.agents/AGENTS.md
 各 skill 的源路径见审计清单；目录软链例如：
 
 ```sh
-ln -s ~/.pi/agent/npm/node_modules/@howaboua/pi-skill-agents-md/skills/agents-md ~/.agents/skills/agents-md
-ln -s ../../.agents/skills/agents-md ~/.codex/skills/agents-md
-ln -s ../../.agents/skills/agents-md ~/.claude/skills/agents-md
+ln -s ~/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator ~/.agents/skills/skill-creator
+ln -s ../../.agents/skills/skill-creator ~/.codex/skills/skill-creator
+ln -s ../../.agents/skills/skill-creator ~/.claude/skills/skill-creator
 ```
 
 这些入口只在当前机器生效；换机器需重新安装来源并调整路径。卸载 Pi 包或移动仓库会使相应软链失效。更新后重开目标 agent 会话；现有会话已经加载的指令不会自动刷新。

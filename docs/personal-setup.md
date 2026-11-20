@@ -65,7 +65,6 @@ angristan 集合的启用入口：
 | 包                                                                                                                       | 用途                                                      |
 | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
 | [pi-skill-adversarial-qa](https://www.npmjs.com/package/@howaboua/pi-skill-adversarial-qa)                               | 用可执行反例检查边界与回归                                |
-| [pi-skill-agents-md](https://www.npmjs.com/package/@howaboua/pi-skill-agents-md)                                         | 编写和维护分层 AGENTS.md                                  |
 | [pi-skill-anti-ai-copy](https://www.npmjs.com/package/@howaboua/pi-skill-anti-ai-copy)                                   | 保留作者语气，减少空泛文案                                |
 | [pi-skill-skill-creator](https://www.npmjs.com/package/@howaboua/pi-skill-skill-creator)                                 | 创建、验证和维护 Skills                                   |
 | [pi-skill-harness-and-agent-engineering](https://www.npmjs.com/package/@howaboua/pi-skill-harness-and-agent-engineering) | Harness、工具、指令和缓存工作流，共六个 Skills            |

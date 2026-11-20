@@ -65,7 +65,6 @@ Managed packages disable their native entry points with `extensions: []` in `set
 | Package                                                                                                                  | Purpose                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | [pi-skill-adversarial-qa](https://www.npmjs.com/package/@howaboua/pi-skill-adversarial-qa)                               | Check edge cases and regressions with executable counterexamples                      |
-| [pi-skill-agents-md](https://www.npmjs.com/package/@howaboua/pi-skill-agents-md)                                         | Write and maintain scoped AGENTS.md files                                             |
 | [pi-skill-anti-ai-copy](https://www.npmjs.com/package/@howaboua/pi-skill-anti-ai-copy)                                   | Preserve the author's voice and remove vague prose                                    |
 | [pi-skill-skill-creator](https://www.npmjs.com/package/@howaboua/pi-skill-skill-creator)                                 | Create, validate, and maintain Skills                                                 |
 | [pi-skill-harness-and-agent-engineering](https://www.npmjs.com/package/@howaboua/pi-skill-harness-and-agent-engineering) | Harness, tool, instruction, and cache workflows; six Skills                           |

@@ -55,7 +55,6 @@
     "npm:@howaboua/pi-ask",
     "npm:@howaboua/pi-smart-btw",
     "npm:@howaboua/pi-skill-adversarial-qa",
-    "npm:@howaboua/pi-skill-agents-md",
     "npm:@howaboua/pi-skill-skill-creator",
     {
       "source": "git:github.com/DietrichGebert/ponytail",
