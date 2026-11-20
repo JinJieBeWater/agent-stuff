@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Keep every agent host on this machine wired to ~/.agents/skills.
+
+  agent-config check              report drift; exit 1 if anything needs attention
+  agent-config apply              fix what this script owns, report the rest
+  agent-config apply --dry-run    print what apply would change
+
+Manifest: ~/.config/agent-config/skills.toml (names are directory names in ~/.agents/skills)
+
+  explicit_only = ["mole"]        # hide from the model in addition to SKILL.md frontmatter
+  [exclude]
+  pi = ["show-me"]                # keep a skill out of one host
+
+Output: one line per finding, `TAG host name  detail`. Tags: MISSING, STALE, FOREIGN,
+BROKEN, POLICY, PROMPT (drift) and INFO, WARN (no exit code effect). apply prefixes
+fixed lines with FIXED, dry-run with WOULD. Start a new host session to see changes.
+"""
+import os
+import sys
+import tomllib
+from pathlib import Path
+
+HOME = Path.home()
+AGENTS = HOME / ".agents/skills"
+MANIFEST = HOME / ".config/agent-config/skills.toml"
+LINK_HOSTS = {"claude": HOME / ".claude/skills", "antigravity": HOME / ".gemini/config/skills"}
+CODEX = HOME / ".codex/skills"
+HOSTS = ("claude", "codex", "pi", "antigravity")
+
+
+class Report:
+    def __init__(self, mode):
+        self.mode = mode  # check | apply | dry
+        self.drift = 0
+
+    def finding(self, tag, host, name, detail="", fix=None):
+        """Drift. `fix` runs under apply; without one the finding needs a human."""
+        self.drift += 1
+        line = f"{tag} {host} {name}" + (f"  {detail}" if detail else "")
+        if fix and self.mode == "apply":
+            fix()
+            line = "FIXED " + line
+        elif fix and self.mode == "dry":
+            line = "WOULD " + line
+        print(line)
+
+    def note(self, tag, host, name, detail=""):
+        print(f"{tag} {host} {name}" + (f"  {detail}" if detail else ""))
+
+
+def load_manifest():
+    data = tomllib.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    exclude = data.get("exclude", {})
+    unknown = set(exclude) - set(HOSTS)
+    if unknown:
+        sys.exit(f"{MANIFEST}: unknown host in [exclude]: {', '.join(sorted(unknown))}")
+    return {
+        "explicit_only": list(data.get("explicit_only", [])),
+        "exclude": {h: set(exclude.get(h, [])) for h in HOSTS},
+    }
+
+
+def agents_skills():
+    """name -> realpath for every entry of ~/.agents/skills, None when broken."""
+    out = {}
+    if AGENTS.is_dir():
+        for p in sorted(AGENTS.iterdir()):
+            if p.name.startswith("."):
+                continue
+            out[p.name] = os.path.realpath(p) if (p / "SKILL.md").is_file() else None
+    return out
+
+
+def raw_target(link):
+    return os.path.normpath(os.path.join(os.path.dirname(link), os.readlink(link)))
+
+
+def owned(link, skills):
+    """A host entry is ours when it is a symlink into ~/.agents/skills or to the same dir."""
+    if not link.is_symlink():
+        return False
+    if raw_target(link).startswith(str(AGENTS) + os.sep):
+        return True
+    real = skills.get(link.name)
+    return real is not None and os.path.realpath(link) == real
+
+
+def check_links(rep, man, skills):
+    for name, real in skills.items():
+        if real is None:
+            rep.finding("BROKEN", "agents", name, f"-> {os.readlink(AGENTS / name)}" if (AGENTS / name).is_symlink() else "no SKILL.md")
+    live = {n for n, r in skills.items() if r is not None}
+    for host, root in LINK_HOSTS.items():
+        for name in sorted(live):
+            p = root / name
+            want = name not in man["exclude"][host]
+            if owned(p, skills):
+                if not want:
+                    rep.finding("STALE", host, name, "excluded in manifest", p.unlink)
+            elif p.is_symlink() or p.exists():
+                if want:
+                    rep.finding("FOREIGN", host, name, f"{'-> ' + os.readlink(p) if p.is_symlink() else 'real directory'}; not touched")
+            elif want:
+                rel = os.path.relpath(AGENTS / name, root)
+                rep.finding("MISSING", host, name, "", lambda p=p, rel=rel: (root.mkdir(parents=True, exist_ok=True), p.symlink_to(rel)))
+        if root.is_dir():
+            for p in sorted(root.iterdir()):
+                if p.name not in skills and owned(p, skills):
+                    rep.finding("STALE", host, p.name, "gone from ~/.agents/skills", p.unlink)
+    if CODEX.is_dir():
+        for p in sorted(CODEX.iterdir()):
+            if skills.get(p.name, "") is not None and owned(p, skills):
+                rep.finding("STALE", "codex", p.name, "Codex reads ~/.agents/skills itself", p.unlink)
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ""
+    if cmd not in ("check", "apply"):
+        sys.exit(__doc__)
+    mode = "dry" if cmd == "apply" and "--dry-run" in argv else cmd
+    rep = Report(mode)
+    man = load_manifest()
+    skills = agents_skills()
+    check_links(rep, man, skills)
+    if mode == "check":
+        print("ok" if not rep.drift else f"{rep.drift} finding(s)")
+        return 1 if rep.drift else 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
