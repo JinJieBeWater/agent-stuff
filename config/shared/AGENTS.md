@@ -15,7 +15,7 @@
 - 新建或修改会被 agent 读取并遵循的文本（skill 及其引用文件、AGENTS.md、prompt、子 agent 定义、工作流指令，含一行小改）前，先读 `~/.agents/skills/writing-for-agents/SKILL.md`，除非全文已在上下文。
 - 创建、修改或移植 skill 时读取 `~/.agents/skills/skill-creator/SKILL.md`。
 - 确认无真实用户的项目：用最简单实现替换，更新全部调用方，不做兼容或迁移、不留旧实现备用。先更新文档；行为测试只锁行为，先观察失败再最少实现；核对文档与代码后，清理本次废弃代码、文件和文档。
-- 计划、调研笔记和 scratch 不提交进仓库。跨会话要用的反馈原文、计划和报告存到所属项目或主题的持久目录；与当前仓库无关的内容存到仓库外。`/tmp` 只放可丢弃的中间产物。持久名称说明用途，多词用 kebab-case，ASCII 主体可带中文；顺序号仅作不复用的前缀，会话代号不作持久名称。
+- 计划、调研笔记和 scratch 不提交进仓库。要保留计划、调研、反馈原文或临时文件时，写进仓库根目录的 `.workspace/`；在 worktree 里而仓库根目录没有 `.workspace` 时，先查主 checkout（`git worktree list` 第一行的路径）：它有 `.workspace`，就在当前仓库根目录运行 `ln -s "$(readlink <主 checkout>/.workspace)" .workspace`，再写进去。没有 `.workspace` 的仓库，跨会话要用的存到所属项目或主题的持久目录，与当前仓库无关的存到仓库外。`/tmp` 只放可丢弃的中间产物。持久名称说明用途，多词用 kebab-case，ASCII 主体可带中文；顺序号仅作不复用的前缀，会话代号不作持久名称。
 
 ## 工具与环境
 
