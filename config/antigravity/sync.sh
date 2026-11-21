@@ -79,8 +79,20 @@ PY
 link_force "$AGY_GEMINI" "${GEMINI_HOME}/GEMINI.md"
 link_force "$SHARED_AGENTS" "${GEMINI_HOME}/config/AGENTS.md"
 link_force "$AGY_LEAN_AGENT" "${GEMINI_HOME}/config/agents/lean.md"
-if [ -d "${GEMINI_HOME}/config/plugins/ryugi/skills/using-ryugi" ]; then
-  link_force "${GEMINI_HOME}/config/plugins/ryugi/skills/using-ryugi" "${GEMINI_HOME}/config/skills/ryugi-using-ryugi"
+if [ -d "${GEMINI_HOME}/config/plugins/ryugi/skills" ]; then
+  for skill_dir in "${GEMINI_HOME}/config/plugins/ryugi/skills"/*; do
+    [ -d "$skill_dir" ] && [ -f "${skill_dir}/SKILL.md" ] || continue
+    link_force "$skill_dir" "${GEMINI_HOME}/config/skills/ryugi-$(basename "$skill_dir")"
+  done
+  for link_path in "${GEMINI_HOME}/config/skills"/ryugi-*; do
+    [ -L "$link_path" ] || continue
+    target="$(readlink "$link_path")"
+    case "$target" in
+      "${GEMINI_HOME}/config/plugins/ryugi/skills/"*)
+        [ -e "$link_path" ] || rm -f "$link_path"
+        ;;
+    esac
+  done
 fi
 disable_swarm_plugin "${GEMINI_HOME}/config/config.json"
 
