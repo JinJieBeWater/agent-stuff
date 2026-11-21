@@ -50,12 +50,7 @@ Project surfaces: Pi (interactive TUI and RPC), Claude Code, Codex, Antigravity 
 
 ## Verifying
 
-Fast check before committing: `bun run check` (format, lint, and type-check across root and all workspaces). Run a single test file with `bunx vp test run <path>`, or a single package from its directory with `bun run test`.
-
-Gotchas on macOS / T3 sandboxes:
-
-- Under long `TMPDIR` paths (such as T3's Antigravity sandbox tmpdir), `packages/pi-drop-session/test/index.test.ts` truncates subprocess stderr before the asserted string. Run with `TMPDIR=/private/tmp bun run test` when that occurs.
-- After editing `skills/shared/agent-config`, also run `skills/shared/agent-config/scripts/agent-config check`.
+Fast check before committing: `bun run check` (format, lint, and type-check across root and all workspaces). Run a single test file with `bunx vp test run <path>`, or a single package from its directory with `bun run test`. After editing `skills/shared/agent-config`, also run `skills/shared/agent-config/scripts/agent-config check`.
 
 - Test behavior that can break, such as orchestration, protocol translation, auth and permission guards, persistence and migrations, external-format parsing, race fixes, and the logic a bug fix changed. Leave out tests for what types already guarantee, trivial logic, copy text, smoke runs, mock-call mirrors, callback wiring, and props rendered to static markup.
 - Extend before you add. When an existing test or table covers the behavior, add a row or an assertion there. Write a new test only when no case fits.

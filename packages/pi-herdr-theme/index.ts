@@ -143,7 +143,15 @@ export function sync(
   return true;
 }
 
-export default async function herdrTheme(pi: ExtensionAPI): Promise<void> {
+type WatchDir = (
+  dir: string,
+  listener: (event: string, filename: string | null) => void,
+) => Pick<FSWatcher, "close" | "on">;
+
+export default async function herdrTheme(
+  pi: ExtensionAPI,
+  watchDir: WatchDir = watch,
+): Promise<void> {
   if (!(await isHerdrCoreTui(pi))) return;
   const generate = await loadGenerator();
   // Before the session too: Pi loads its theme first, so a fresh start draws the current colors.
@@ -152,7 +160,7 @@ export default async function herdrTheme(pi: ExtensionAPI): Promise<void> {
   } catch {
     // session_start tries again, and can say why.
   }
-  let watcher: FSWatcher | undefined;
+  let watcher: Pick<FSWatcher, "close" | "on"> | undefined;
   pi.on("session_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     let lastProblem: string | undefined;
@@ -169,16 +177,16 @@ export default async function herdrTheme(pi: ExtensionAPI): Promise<void> {
         if (!(error instanceof SyntaxError)) warn(String(error));
       }
     };
-    run();
     mkdirSync(dirname(HERDR_THEME_FILE), { recursive: true });
     // Herdr replaces the file with a rename, so its folder is watched rather than the file.
-    watcher = watch(dirname(HERDR_THEME_FILE), (_event, name) => {
-      if (name === basename(HERDR_THEME_FILE)) run();
+    watcher = watchDir(dirname(HERDR_THEME_FILE), (_event, name) => {
+      if (name === null || name === basename(HERDR_THEME_FILE)) run();
     });
     watcher.on("error", (error) => {
       warn(error.message);
       watcher?.close();
     });
+    run();
   });
   pi.on("session_shutdown", () => watcher?.close());
 }

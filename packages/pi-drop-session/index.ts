@@ -124,7 +124,16 @@ export default function dropSession(pi: ExtensionAPI, run: typeof runCommand = r
                 return;
               }
             }
-            const detail = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+            const stderr =
+              error &&
+              typeof error === "object" &&
+              "stderr" in error &&
+              typeof error.stderr === "string"
+                ? error.stderr.trim()
+                : "";
+            const detail = (
+              stderr || (error instanceof Error ? error.message : String(error))
+            ).slice(0, 300);
             nextCtx.ui.notify(
               `Drop failed: ${detail}. No delete fallback was attempted. Use /resume to reopen the old session: ${oldFile}`,
               "error",

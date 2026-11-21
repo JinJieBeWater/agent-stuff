@@ -356,9 +356,13 @@ test("real execFile passes shell syntax literally and awaits successful completi
   expect(state.notices[0]).toMatchObject({ context: "fresh", level: "info" });
 });
 
-test("a real nonzero subprocess preserves the old fixture and reports stderr", async () => {
+test("a real nonzero subprocess preserves the old fixture and reports stderr even with long paths", async () => {
   configure({
-    command: [process.execPath, script("console.error('fixture child failed'); process.exit(7)")],
+    command: [
+      process.execPath,
+      script("console.error('fixture child failed'); process.exit(7)"),
+      "x".repeat(320),
+    ],
   });
   const state = setup({ real: true });
   await state.invoke();
