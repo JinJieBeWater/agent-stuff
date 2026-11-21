@@ -27,7 +27,8 @@
 - KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力。KVM 重活由共享 skill `kvm-offload` 承担，目录布局以 KVM 上的 `~/work/README.md` 为准，skill 不缓存路径；OmniWM 在通用版保留使用原则。项目的本机环境约定写进用到它的 skill 或项目外层目录的 AGENTS.md，不进全局指令。
 - 上游 skill 目录原样保留，整个目录软链进 `~/.agents/skills/`，不复制 `SKILL.md`。含本机或私有信息的 skill 留在机器本地，不进入公开仓库。
 - Pi 扩展、工具注册、MCP、模型、认证、UI 和宿主生命周期配置仍归 Pi。通用 skill 可读不等于宿主具备其调用的工具；使用前按 skill 的前置条件核对。
-- show-me 保留[既有两个版本](../../skills/README.md)：共享版保持显式调用策略，Pi 版保留自动发现和原生渲染适配。
+- `skills/shared/show-me` 保持显式调用策略（`disable-model-invocation: true`）。
+- `config/pi/` 下的文件均为 `~/.pi/agent/` 的软链源文件（恢复用 `ln -s ~/my/agent-stuff/config/pi/<路径> ~/.pi/agent/<路径>`）。
 
 ## 恢复
 

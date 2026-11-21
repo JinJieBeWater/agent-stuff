@@ -56,8 +56,6 @@
       "./packages/pi-tool-exposure/index.ts",
       "./packages/pi-skill-discovery/index.ts"
     ],
-    "skills": [
-      "./skills/pi/show-me"
-    ]
+    "skills": []
   }
 }
