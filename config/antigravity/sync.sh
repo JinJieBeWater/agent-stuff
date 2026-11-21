@@ -79,7 +79,9 @@ PY
 link_force "$AGY_GEMINI" "${GEMINI_HOME}/GEMINI.md"
 link_force "$SHARED_AGENTS" "${GEMINI_HOME}/config/AGENTS.md"
 link_force "$AGY_LEAN_AGENT" "${GEMINI_HOME}/config/agents/lean.md"
-rm -f "${GEMINI_HOME}/config/skills/ryugi-using-ryugi"
+if [ -d "${GEMINI_HOME}/config/plugins/ryugi/skills/using-ryugi" ]; then
+  link_force "${GEMINI_HOME}/config/plugins/ryugi/skills/using-ryugi" "${GEMINI_HOME}/config/skills/ryugi-using-ryugi"
+fi
 disable_swarm_plugin "${GEMINI_HOME}/config/config.json"
 
 # 2. T3 Code isolated Antigravity profiles
