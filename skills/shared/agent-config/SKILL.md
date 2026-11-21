@@ -35,7 +35,7 @@ Script: `scripts/agent-config` in this skill's directory.
 - **Manual-only**: a skill you edit gets `disable-model-invocation: true` in its frontmatter (Claude, Pi and Antigravity read it; `apply` writes Codex's `openai.yaml`). An upstream skill you leave untouched goes in `explicit_only`: Claude and Codex hide it, Pi and Antigravity print `INFO` because they have no setting for it.
 - **Keep a skill out of one host**: `[exclude].<host>`.
 - **Edit a global prompt**: edit the source file in agent-stuff; `check` confirms every entry still points at it.
-- **New machine**: restore `~/.config/agent-config/skills.toml` (not in the repo; `check` refuses to run without it), install skill sources and recreate `~/.agents/skills` links (sources: `docs/pi-shared-skills-audit-2026-11-09.md`), then the flow.
+- **New machine**: restore `~/.config/agent-config/skills.toml` (not in the repo; `check` refuses to run without it), install skill sources and recreate `~/.agents/skills` links (sources: `~/my/agent-stuff/config/shared/README.md`), then the flow.
 - **FOREIGN entry**: a real directory, or a link elsewhere, where a link to `~/.agents/skills` belongs. `diff -r` it against the `.agents` copy; replace it with the link only after the user agrees.
 
 ## Host details

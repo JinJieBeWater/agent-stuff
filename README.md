@@ -17,7 +17,7 @@
 | [`config/pi/`](config/pi/)                   | Pi 专属追加指令、扩展 JSON 配置、Shepherdr 预设和 `settings.json` 快照      | 按需软链或对比合并                   |
 | [`config/ryugi/`](config/ryugi/)             | 本机 `ryugi-maintain` 更新与检查脚本                                        | 本机手动使用                         |
 | [`config/rpiv-todo/`](config/rpiv-todo/)     | `rpiv-todo` 的任务追踪指引配置                                              | 本机手动使用                         |
-| [`docs/`](docs/)                             | 开发指南、本机个人配置清单与历史审计记录                                    | 文档参考                             |
+| [`docs/`](docs/)                             | 开发指南与本机个人配置清单                                                  | 文档参考                             |
 
 ## Pi 扩展
 

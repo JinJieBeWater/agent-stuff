@@ -4,7 +4,7 @@
 
 This inventory records a local setup snapshot. The personal settings and context policy determine what loads.
 
-These third-party packages and local settings are excluded from the default `agent-stuff` installation. See the [configuration archive](../config/README.en.md) for settings, instructions, Shepherdr roles, and todo guidance, and the [maintenance record](local-maintenance-audit-2026-11-01.en.md) for build sources. This page records configured status; what a running session has loaded depends on its last startup or `/reload`.
+These third-party packages and local settings are excluded from the default `agent-stuff` installation. See the [configuration archive](../config/README.en.md) for settings, instructions, Shepherdr roles, and todo guidance. This page records configured status; what a running session has loaded depends on its last startup or `/reload`.
 
 ## This repository and local forks
 

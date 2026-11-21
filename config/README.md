@@ -34,5 +34,3 @@ JSON 字段、命令和路径保持原样；归档的指令、Skill 和角色 pr
 2. 模型定义与认证由目标机器提供。`npmCommand` 使用 mise 和 Node 24.13.1；网页抓取使用 macOS Homebrew 的 curl。Skills 从各自来源安装；本机 show-me 入口软链到仓库的 `skills/pi/show-me`。
 3. [权限配置](pi/extensions/pi-permission-system/config.json)保留 `yoloMode: true`；[工作树模板](pi/templates/worktree.json)会复制 `.env`、链接项目目录并安装依赖。按目标环境选择是否采用。
 4. 合并后在空闲会话 `/reload` 或重开，核对工具暴露和角色列表。修改运行配置后再同步副本，继续排除设备状态、旧修订和备份。会话、日志、缓存及跨机同步载荷留在各自机器。
-
-定制构建和跨机同步工具的来源见[维护记录](../docs/local-maintenance-audit-2026-11-01.md)。

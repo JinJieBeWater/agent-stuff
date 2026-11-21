@@ -74,7 +74,7 @@ The [personal setup](personal-setup.en.md) is a guide only. Its third-party pack
 
 ## Compatibility baseline
 
-Runtime interfaces are validated against the Node host and Pi SDK 1.4. Herdr extensions are checked against native interfaces in Core 0.1.15 and App 0.1.10. See root `devDependencies` for exact SDK versions. This does not establish compatibility with Bun-compiled Pi or every past and future version.
+Runtime interfaces are validated against the Node host and Pi SDK 1.5. Herdr extensions are checked against native interfaces in Core 0.1.15 and App 0.1.10. See root `devDependencies` for exact SDK versions. This does not establish compatibility with Bun-compiled Pi or every past and future version.
 
 - Borderless tables depend on Pi's native table layout and fall back to native display when a layout is not recognized.
 - `/drop` command lookup targets macOS/Linux. Windows is unsupported and untested.

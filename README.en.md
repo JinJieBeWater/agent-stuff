@@ -17,7 +17,7 @@ Personal coding-agent toolkit and configuration repository containing [Pi](https
 | [`config/pi/`](config/pi/)                   | Pi-only appended instructions, extension JSON, Shepherdr profiles, settings snapshot | Symlinked or merged manually            |
 | [`config/ryugi/`](config/ryugi/)             | Local `ryugi-maintain` update and doctor wrapper                                     | Run manually on this machine            |
 | [`config/rpiv-todo/`](config/rpiv-todo/)     | Task tracking guidance config for `rpiv-todo`                                        | Copied or symlinked manually            |
-| [`docs/`](docs/)                             | Development guide, local setup inventory, and dated audit notes                      | Documentation only                      |
+| [`docs/`](docs/)                             | Development guide and local setup inventory                                          | Documentation only                      |
 
 ## Pi extensions
 

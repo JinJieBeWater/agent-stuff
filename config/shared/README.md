@@ -25,14 +25,24 @@
 - 写测试、代码风格、项目文档和 PR 格式的约定只在项目 AGENTS.md 里，由 [jinit 模板](../../skills/shared/jinit/assets/AGENTS.md)带入，全局只留对所有任务都成立的规则。坑：Ryugi 在各宿主都是 full 模式，没有这份项目文件的仓库会按 `ryugi:test-driven-development` 的默认来，也就是每处改动先写测试、每次跑全套。
 - 项目里的 `.pi/APPEND_SYSTEM.md` 会整份顶替全局的 APPEND_SYSTEM.md，两者不合并；启动时带 `--append-system-prompt` 同样会跳过它。项目需要追加时，把 Pi 增量一并写进项目文件。
 - KVM 重计算和 OmniWM 窗口管理是本机约定，不是 Pi 专属能力。KVM 重活由共享 skill `kvm-offload` 承担，目录布局以 KVM 上的 `~/work/README.md` 为准，skill 不缓存路径；OmniWM 在通用版保留使用原则。项目的本机环境约定写进用到它的 skill 或项目外层目录的 AGENTS.md，不进全局指令。
-- 本次从 Pi 安装来源暴露的通用 skill、依赖和未导出原因见[审计清单](../../docs/pi-shared-skills-audit-2026-11-09.md)。上游目录原样保留，整个目录软链，不复制 SKILL.md。
-- 含本机网络地址的 `configure-kvm-moshi-via-tailscale` 实体保留在 `~/.agents/skills`，由 Pi/Codex/Claude 软链使用；它和项目外层的本机环境说明均不进入公开仓库，换机器时私下恢复。
+- 上游 skill 目录原样保留，整个目录软链进 `~/.agents/skills/`，不复制 `SKILL.md`。含本机或私有信息的 skill 留在机器本地，不进入公开仓库。
 - Pi 扩展、工具注册、MCP、模型、认证、UI 和宿主生命周期配置仍归 Pi。通用 skill 可读不等于宿主具备其调用的工具；使用前按 skill 的前置条件核对。
 - show-me 保留[既有两个版本](../../skills/README.md)：共享版保持显式调用策略，Pi 版保留自动发现和原生渲染适配。
 
 ## 恢复
 
-先按原来源安装 skill 与所需工具，把每个 skill 软链进 `~/.agents/skills/<目录名>`（源路径见审计清单），例如：
+先按原来源安装 skill 与所需工具，把每个 skill 软链进 `~/.agents/skills/<目录名>`：
+
+| 共享 skill                                                                                                                             | 来源路径                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `agent-config`、`babysit-pr`、`diagnose-pi-internals`、`herdr-session-recovery`、`jinit`、`pi-magpie-same-model-failover`、`show-me`   | `~/my/agent-stuff/skills/shared/<name>`                                                       |
+| `skill-creator`                                                                                                                        | `~/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator`          |
+| `adversarial-qa`                                                                                                                       | `~/.pi/agent/npm/node_modules/@howaboua/pi-skill-adversarial-qa/skills/adversarial-qa`        |
+| `agent-session-diagnostics`、`agent-tool-design`、`extension-design`、`harness-checklist`、`instruction-calibration`、`prompt-caching` | `~/.pi/agent/npm/node_modules/@howaboua/pi-skill-harness-and-agent-engineering/skills/<name>` |
+| `ponytail-review`                                                                                                                      | `~/.pi/agent/git/github.com/DietrichGebert/ponytail/skills/ponytail-review`                   |
+| `file-pr`、`full-send`、`full-stop`、`leaving-pr-comments`、`modernize`、`sol-loop`、`takeover`                                        | `~/.local/share/agent-sources/tstack/skills/<name>`                                           |
+
+例如：
 
 ```sh
 ln -s ~/.pi/agent/npm/node_modules/@howaboua/pi-skill-skill-creator/skills/skill-creator ~/.agents/skills/skill-creator

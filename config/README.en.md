@@ -34,5 +34,3 @@ JSON fields, commands, and paths retain their original form. Archived instructio
 2. Supply model definitions and authentication on the target machine. `npmCommand` uses mise and Node 24.13.1; web fetching uses macOS Homebrew curl. Install Skills from their respective sources. The local `show-me` entry is a symlink to this repository's `skills/pi/show-me`.
 3. The [permission configuration](pi/extensions/pi-permission-system/config.json) retains `yoloMode: true`. The [worktree template](pi/templates/worktree.json) copies `.env`, links project directories, and installs dependencies. Decide whether these settings fit the target environment.
 4. After merging, run `/reload` in an idle session or start a new one, then check tool exposure and the role list. Sync the archive after changing live configuration, continuing to exclude device state, old revisions, and backups. Sessions, logs, caches, and cross-machine sync payloads remain on their machines.
-
-See the [maintenance record](../docs/local-maintenance-audit-2026-11-01.en.md) for custom builds and cross-machine sync tools.

@@ -4,7 +4,7 @@
 
 本清单记录本机配置快照。当前加载范围见个人设置和环境策略。
 
-这些第三方包与本机配置不随 `agent-stuff` 自动安装。配置、指令、Shepherdr 角色和 todo 指引见[个人配置](../config/README.md)；构建来源见[维护记录](local-maintenance-audit-2026-11-01.md)。这里记录配置的启用状态，当前会话是否已加载取决于最近一次启动或 `/reload`。
+这些第三方包与本机配置不随 `agent-stuff` 自动安装。配置、指令、Shepherdr 角色和 todo 指引见[个人配置](../config/README.md)。这里记录配置的启用状态，当前会话是否已加载取决于最近一次启动或 `/reload`。
 
 ## 本仓库与本地 fork
 
