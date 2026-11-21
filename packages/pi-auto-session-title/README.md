@@ -10,7 +10,7 @@
 
 ## 安装
 
-本扩展包含在 `pi-stuff` Git package 中。本地开发时，在仓库根目录执行 `pi install ./packages/pi-auto-session-title`。若已安装 `angristan/pi-extensions`，请停用其中的 `extensions/auto-session-title/index.ts`，确保只有一套实现生成标题。在空闲会话中执行 `/reload`，或重启 Pi。
+本扩展包含在 `agent-stuff` Git package 中。本地开发时，在仓库根目录执行 `pi install ./packages/pi-auto-session-title`。若已安装 `angristan/pi-extensions`，请停用其中的 `extensions/auto-session-title/index.ts`，确保只有一套实现生成标题。在空闲会话中执行 `/reload`，或重启 Pi。
 
 配置文件仍为 `auto-session-title.json`；已有的会话焦点元数据和手动标题锁会继续使用。
 

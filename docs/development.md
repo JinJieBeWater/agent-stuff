@@ -7,8 +7,8 @@
 ## 准备
 
 ```sh
-git clone https://github.com/JinJieBeWater/pi-stuff.git
-cd pi-stuff
+git clone https://github.com/JinJieBeWater/agent-stuff.git
+cd agent-stuff
 bun install --frozen-lockfile --ignore-scripts
 ```
 

@@ -22,7 +22,7 @@ Manual renames pause automatic updates. Run `/title-refresh` to resume them.
 
 ## Install
 
-This extension is included in the `pi-stuff` Git package. For local development,
+This extension is included in the `agent-stuff` Git package. For local development,
 run `pi install ./packages/pi-auto-session-title` from the repository root.
 Disable `extensions/auto-session-title/index.ts` in any installed
 `angristan/pi-extensions` package so only one implementation generates titles.

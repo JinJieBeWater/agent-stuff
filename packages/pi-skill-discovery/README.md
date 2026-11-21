@@ -50,7 +50,7 @@ skill_search({"query":"任务关键词或 Skill 名称"})
 
 ```json
 {
-  "packages": ["git:github.com/JinJieBeWater/pi-stuff", "npm:@howaboua/pi-codex-conversion"]
+  "packages": ["git:github.com/JinJieBeWater/agent-stuff", "npm:@howaboua/pi-codex-conversion"]
 }
 ```
 

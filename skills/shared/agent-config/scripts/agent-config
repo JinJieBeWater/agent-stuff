@@ -24,7 +24,7 @@ import tomllib
 from pathlib import Path
 
 HOME = Path.home()
-REPO = Path(__file__).resolve().parents[4]  # pi-stuff: skills/shared/agent-config/scripts/agent-config
+REPO = Path(__file__).resolve().parents[4]  # agent-stuff: skills/shared/agent-config/scripts/agent-config
 AGENTS = HOME / ".agents/skills"
 MANIFEST = HOME / ".config/agent-config/skills.toml"
 LINK_HOSTS = {"claude": HOME / ".claude/skills", "antigravity": HOME / ".gemini/config/skills"}

@@ -30,7 +30,7 @@ JSON 字段、命令和路径保持原样；归档的指令、Skill 和角色 pr
 
 ## 恢复与维护
 
-1. 软链源文件用 `ln -s ~/my/pi-stuff/config/pi/<路径> ~/.pi/agent/<路径>` 恢复，其余按需逐文件对比合并；设置了 `PI_CODING_AGENT_DIR` 时使用该目录。本仓库、PCC/Shepherdr fork、评测 Skill 分别位于 `~/my/pi-stuff`、`~/my/personal/fork/howaboua-pi-stuff`、`~/my/tools/pi-evals`。换目录或安装来源时调整 package 路径，保留 [Skill discovery 在 PCC 前加载](../packages/pi-skill-discovery/README.md#与-codex-conversion-共用)的顺序。本地依赖安装见[开发指南](../docs/development.md#准备)。
+1. 软链源文件用 `ln -s ~/my/agent-stuff/config/pi/<路径> ~/.pi/agent/<路径>` 恢复，其余按需逐文件对比合并；设置了 `PI_CODING_AGENT_DIR` 时使用该目录。本仓库、PCC/Shepherdr fork、评测 Skill 分别位于 `~/my/agent-stuff`、`~/my/personal/fork/howaboua-pi-stuff`、`~/my/tools/pi-evals`。换目录或安装来源时调整 package 路径，保留 [Skill discovery 在 PCC 前加载](../packages/pi-skill-discovery/README.md#与-codex-conversion-共用)的顺序。本地依赖安装见[开发指南](../docs/development.md#准备)。
 2. 模型定义与认证由目标机器提供。`npmCommand` 使用 mise 和 Node 24.13.1；网页抓取使用 macOS Homebrew 的 curl。Skills 从各自来源安装；本机 show-me 入口软链到仓库的 `skills/pi/show-me`。
 3. [权限配置](pi/extensions/pi-permission-system/config.json)保留 `yoloMode: true`；[工作树模板](pi/templates/worktree.json)会复制 `.env`、链接项目目录并安装依赖。按目标环境选择是否采用。
 4. 合并后在空闲会话 `/reload` 或重开，核对工具暴露和角色列表。修改运行配置后再同步副本，继续排除设备状态、旧修订和备份。会话、日志、缓存及跨机同步载荷留在各自机器。

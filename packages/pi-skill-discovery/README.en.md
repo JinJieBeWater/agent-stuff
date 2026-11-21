@@ -50,7 +50,7 @@ In `packages` in the user `settings.json`, place the entry containing this exten
 
 ```json
 {
-  "packages": ["git:github.com/JinJieBeWater/pi-stuff", "npm:@howaboua/pi-codex-conversion"]
+  "packages": ["git:github.com/JinJieBeWater/agent-stuff", "npm:@howaboua/pi-codex-conversion"]
 }
 ```
 

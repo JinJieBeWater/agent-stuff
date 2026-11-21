@@ -4,11 +4,11 @@
 
 This inventory records a local setup snapshot. The personal settings and context policy determine what loads.
 
-These third-party packages and local settings are excluded from the default `pi-stuff` installation. See the [configuration archive](../config/README.en.md) for settings, instructions, Shepherdr roles, and todo guidance, and the [maintenance record](local-maintenance-audit-2026-11-01.en.md) for build sources. This page records configured status; what a running session has loaded depends on its last startup or `/reload`.
+These third-party packages and local settings are excluded from the default `agent-stuff` installation. See the [configuration archive](../config/README.en.md) for settings, instructions, Shepherdr roles, and todo guidance, and the [maintenance record](local-maintenance-audit-2026-11-01.en.md) for build sources. This page records configured status; what a running session has loaded depends on its last startup or `/reload`.
 
 ## This repository and local forks
 
-All [nine extensions in this repository](../README.en.md#extensions) are enabled and loaded from `~/my/pi-stuff/packages/`. The Pi version of `show-me` is loaded through the `~/.pi/agent/skills/show-me` symlink.
+All [nine extensions in this repository](../README.en.md#pi-extensions) are enabled and loaded from `~/my/agent-stuff/packages/`. The Pi version of `show-me` is loaded through the `~/.pi/agent/skills/show-me` symlink.
 
 | Extension                                                                          | Current source and purpose                                                                                                            |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
