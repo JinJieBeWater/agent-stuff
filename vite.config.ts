@@ -14,13 +14,7 @@ export default defineConfig({
   },
   fmt: {
     // show-me stays byte-close to HumanLayer upstream, including its code style.
-    ignorePatterns: [
-      "node_modules/**",
-      "**/node_modules/**",
-      "skills/*/show-me/SKILL.md",
-      // Kept verbatim for comparison with the Pi adaptation.
-      "config/pi/skills/multi-agent-review/upstream/code-review.md",
-    ],
+    ignorePatterns: ["node_modules/**", "**/node_modules/**", "skills/shared/show-me/SKILL.md"],
     singleQuote: false,
     semi: true,
     sortPackageJson: true,

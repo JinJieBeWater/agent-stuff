@@ -5,7 +5,7 @@ disable-model-invocation: true
 compatibility: "Pi with Shepherdr agents and the reviewer-haiku, reviewer-sonnet, reviewer profiles; Git repository; gh for GitHub PRs."
 ---
 
-Modified from Anthropic's `code-review` plugin (Apache-2.0). `upstream/code-review.md` is the unmodified source and `upstream/LICENSE` its license; [Upstream](#upstream) lists every change. Steps 1–9 keep upstream's numbering and wording so the two files stay diffable.
+Modified from Anthropic's `code-review` plugin (Apache-2.0; license in `upstream/LICENSE`). [Upstream](#upstream) records the base commit and changes. Steps 1–9 keep upstream's numbering and wording so syncing stays diffable.
 
 Usage: `/skill:multi-agent-review <PR number or URL> [--backend github|gitea] [--comment]`, or `/skill:multi-agent-review --base <ref>` to review `HEAD` against a local ref (terminal output only).
 
@@ -153,7 +153,7 @@ Notes:
 
 Source: [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official/blob/c905cd8fec340e465dd66990b82b95b6e45db212/plugins/code-review/commands/code-review.md) at `c905cd8`. Its `README.md` still describes the older 80-point confidence scoring; the command file is authoritative.
 
-To sync, fetch the new command file, `diff` it against `upstream/code-review.md`, apply the changes here, and replace the copy.
+To sync, diff the target upstream commit against `c905cd8` and apply the changes here.
 
 Changes from upstream:
 

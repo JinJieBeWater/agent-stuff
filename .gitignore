@@ -8,12 +8,7 @@ dist
 build
 *.tsbuildinfo
 
-# Generated files
-apps/web/src/routeTree.gen.ts
-local.db
-local.db-*
-
-# Environment variables
+# Environment and secrets
 .env*
 !.env.example
 auth.json*
@@ -38,27 +33,15 @@ models-store.json*
 
 # Logs
 logs
-.evlog/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
 .pnpm-debug.log*
 
-# Turbo
-.turbo
-.nx
-
-# Better-T-Stack
-.alchemy
-.vercel
-
-# Testing
+# Testing and misc
 coverage
 .nyc_output
-
-# Misc
 *.tgz
 .cache
 tmp
