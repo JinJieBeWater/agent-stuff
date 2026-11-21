@@ -5,22 +5,63 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
+  statSync,
   watch,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { createInterface } from "node:readline";
 
 const T3_SERVER_NAME = "t3-code";
 const DEFAULT_AGENT = "lean";
 const SESSION_METHODS = new Set(["session/new", "session/load", "session/resume", "session/fork"]);
 const SHIM_READY_MS = Number(process.env.T3_AGY_MCP_READY_MS ?? 10_000);
 const STATE_SUFFIXES = ["", ".tmp", ".shim", ".ready", ".ready.tmp"];
+const stateDir = process.env.T3_AGY_MCP_STATE_DIR || join(tmpdir(), "t3-agy-mcp");
 
-function readSemver(binPath) {
+function readSemverCache(cachePath) {
+  try {
+    const parsed = JSON.parse(readFileSync(cachePath, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSemverCache(cachePath, cache) {
+  try {
+    for (const key of Object.keys(cache)) {
+      if (!existsSync(key)) delete cache[key];
+    }
+    mkdirSync(dirname(cachePath), { recursive: true, mode: 0o700 });
+    const tmp = `${cachePath}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(cache), { mode: 0o600 });
+    renameSync(tmp, cachePath);
+  } catch {
+    // Best-effort cache.
+  }
+}
+
+function binaryFingerprint(binPath) {
+  try {
+    const key = realpathSync(binPath);
+    const st = statSync(key, { bigint: true });
+    return { key, fp: `${st.ino}:${st.mtimeNs}:${st.size}` };
+  } catch {
+    return null;
+  }
+}
+
+function readSemver(binPath, cacheState) {
+  const id = binaryFingerprint(binPath);
+  if (id && cacheState) {
+    const hit = cacheState.entries[id.key];
+    if (hit?.fp === id.fp && Array.isArray(hit.ver)) return hit.ver;
+  }
+  let ver = null;
   try {
     const out = execFileSync(binPath, ["--version"], {
       encoding: "utf8",
@@ -28,10 +69,15 @@ function readSemver(binPath) {
       stdio: ["ignore", "pipe", "ignore"],
     });
     const m = /(\d+)\.(\d+)\.(\d+)/.exec(out);
-    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+    ver = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
   } catch {
-    return null;
+    ver = null;
   }
+  if (id && cacheState && ver) {
+    cacheState.entries[id.key] = { fp: id.fp, ver };
+    cacheState.dirty = true;
+  }
+  return ver;
 }
 
 function compareSemver(a, b) {
@@ -62,34 +108,50 @@ function resolveUpstreamBinary() {
   if (!managedBin) return localBin;
   if (!existsSync(localBin)) return managedBin;
 
-  const managedVer = readSemver(managedBin);
-  const localVer = readSemver(localBin);
+  const cachePath = join(stateDir, "semver-cache.json");
+  const cacheState = { entries: readSemverCache(cachePath), dirty: false };
+  const managedVer = readSemver(managedBin, cacheState);
+  const localVer = readSemver(localBin, cacheState);
+  if (cacheState.dirty) writeSemverCache(cachePath, cacheState.entries);
   if (localVer && (!managedVer || compareSemver(localVer, managedVer) > 0)) {
     return localBin;
   }
   return managedBin;
 }
 
-// T3 hands its MCP bridge to agy per session, which skips agy's native lazy loading and per-tool
-// config. Pull the stdio entry out and leave its launch spec in a private file; the profile's
-// mcp_config.json starts bin/t3-mcp-shim, which reads that file and runs the real bridge.
+// T3 hands its MCP server (stdio bridge or HTTP endpoint) to agy per session, which skips agy's
+// native lazy loading and per-tool config. Pull the t3-code entry out and leave its spec in a
+// private file; the profile's mcp_config.json starts bin/t3-mcp-shim, which reads that file and
+// forwards directly to T3's MCP endpoint.
 // Returns the servers left for agy and the spec text written, or null when nothing was taken.
 function takeT3Server(mcpServers, statePath) {
   const index = mcpServers.findIndex(
-    (server) => server?.name === T3_SERVER_NAME && typeof server.command === "string",
+    (server) =>
+      server?.name === T3_SERVER_NAME &&
+      (typeof server.command === "string" ||
+        (server.type === "http" && typeof server.url === "string" && server.url.length > 0)),
   );
   if (index === -1) {
     if (mcpServers.some((server) => server?.name === T3_SERVER_NAME)) {
-      process.stderr.write("antigravity wrapper: non-stdio t3-code MCP server left untrimmed\n");
+      process.stderr.write("antigravity wrapper: unsupported t3-code MCP server left untrimmed\n");
     }
     return { mcpServers, written: null };
   }
   const server = mcpServers[index];
-  const state = {
-    command: server.command,
-    args: server.args ?? [],
-    env: Object.fromEntries((server.env ?? []).map((entry) => [entry.name, entry.value])),
-  };
+  const state =
+    typeof server.command === "string"
+      ? {
+          command: server.command,
+          args: server.args ?? [],
+          env: Object.fromEntries((server.env ?? []).map((entry) => [entry.name, entry.value])),
+        }
+      : {
+          type: "http",
+          url: server.url,
+          headers: Object.fromEntries(
+            (server.headers ?? []).map((entry) => [entry.name, entry.value]),
+          ),
+        };
   const written = JSON.stringify(state);
   const tmp = `${statePath}.tmp`;
   writeFileSync(tmp, written, { mode: 0o600 });
@@ -182,6 +244,26 @@ function acpArgsFor(args) {
   return out;
 }
 
+// Split strictly on LF/CRLF rather than node:readline, which splits on U+2028/U+2029 inside JSON strings.
+function listenLines(stream, onLine, onClose) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (raw) => onLine(raw.endsWith("\r") ? raw.slice(0, -1) : raw);
+  stream.on("data", (chunk) => {
+    buffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n")) !== -1) {
+      flush(buffer.slice(0, idx));
+      buffer = buffer.slice(idx + 1);
+    }
+  });
+  stream.on("end", () => {
+    buffer += decoder.decode();
+    if (buffer.length > 0) flush(buffer);
+    onClose();
+  });
+}
+
 const args = process.argv.slice(2);
 const upstreamBin = resolveUpstreamBinary();
 
@@ -192,7 +274,6 @@ if (args[0] !== "acp") {
     process.exit(code ?? 0);
   });
 } else {
-  const stateDir = process.env.T3_AGY_MCP_STATE_DIR || join(tmpdir(), "t3-agy-mcp");
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   removeOrphanedStates(stateDir);
   const statePath = join(stateDir, `${process.pid}.json`);
@@ -237,13 +318,15 @@ if (args[0] !== "acp") {
   };
   // Lines keep their order while a session request waits for the shim.
   let queue = Promise.resolve();
-  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  rl.on("line", (line) => {
-    queue = queue.then(() => forward(line));
-  });
-  rl.on("close", () => {
-    queue = queue.then(() => child.stdin.end());
-  });
+  listenLines(
+    process.stdin,
+    (line) => {
+      queue = queue.then(() => forward(line));
+    },
+    () => {
+      queue = queue.then(() => child.stdin.end());
+    },
+  );
 
   child.on("exit", (code, signal) => {
     removeState();

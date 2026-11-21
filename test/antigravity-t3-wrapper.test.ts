@@ -107,6 +107,71 @@ test("selects the newer semver binary between T3 managed runtime and ~/.local/bi
   }
 });
 
+test("caches upstream semver probes per binary fingerprint and invalidates on binary change", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-wrapper-semver-cache-"));
+  try {
+    const target = `${process.platform === "win32" ? "win32" : process.platform}-${process.arch}`;
+    const managedDir = join(dir, ".t3", "tools", "antigravity-acp", target);
+    const verDir = join(managedDir, "versions", "rel-1");
+    const localBinDir = join(dir, ".local", "bin");
+    const stateDir = join(dir, "state");
+    await mkdir(verDir, { recursive: true });
+    await mkdir(localBinDir, { recursive: true });
+    await mkdir(stateDir, { recursive: true });
+
+    await writeFile(
+      join(managedDir, "active.json"),
+      JSON.stringify({ releaseId: "rel-1" }),
+      "utf8",
+    );
+    const managedBin = join(verDir, process.platform === "win32" ? "agy.exe" : "antigravity");
+    const localBin = join(localBinDir, process.platform === "win32" ? "agy.exe" : "agy");
+    const probeLog = join(dir, "probes.log");
+
+    const script = (label: string, version: string) =>
+      `#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+if (process.argv.includes("--version")) {
+  appendFileSync(${JSON.stringify(probeLog)}, "${label}\\n");
+  process.stdout.write("${version}\\n");
+} else {
+  process.stdout.write("${label}\\n");
+}
+`;
+    await writeFile(managedBin, script("managed", "1.5.9"), "utf8");
+    await writeFile(localBin, script("local", "1.5.14"), "utf8");
+    await chmod(managedBin, 0o755);
+    await chmod(localBin, 0o755);
+
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: dir, T3_AGY_MCP_STATE_DIR: stateDir };
+    delete env.AGY_UPSTREAM_BIN;
+
+    const first = await runProcess(wrapperPath, ["agents"], env);
+    expect(first.code).toBe(0);
+    expect(first.stdout.trim()).toBe("local");
+
+    const second = await runProcess(wrapperPath, ["agents"], env);
+    expect(second.code).toBe(0);
+    expect(second.stdout.trim()).toBe("local");
+
+    // Second run must hit cache without re-running --version on either binary.
+    expect(readFileSync(probeLog, "utf8").trim().split("\n")).toEqual(["managed", "local"]);
+
+    // Updating localBin invalidates its entry and re-probes only localBin.
+    await writeFile(localBin, script("local", "1.5.8"), "utf8");
+    const third = await runProcess(wrapperPath, ["agents"], env);
+    expect(third.code).toBe(0);
+    expect(third.stdout.trim()).toBe("managed");
+    expect(readFileSync(probeLog, "utf8").trim().split("\n")).toEqual([
+      "managed",
+      "local",
+      "local",
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 const shimPath = join(root, "config", "antigravity", "bin", "t3-mcp-shim");
 
 type Json = Record<string, any>;
@@ -180,21 +245,36 @@ async function writeFakeAgy(dir: string) {
     fakeAgy,
     `#!/usr/bin/env node
 import { readFileSync, statSync } from "node:fs";
-import { createInterface } from "node:readline";
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (!line.trim()) continue;
+const decoder = new TextDecoder();
+let buffer = "";
+const onLine = (raw) => {
+  const line = raw.endsWith("\\r") ? raw.slice(0, -1) : raw;
+  if (!line.trim()) return;
   const msg = JSON.parse(line);
   const reply = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
   if (msg.method === "initialize") {
     reply({ argv: process.argv.slice(2), statePath: process.env.T3_AGY_MCP_STATE ?? null });
+  } else if (msg.method === "session/prompt") {
+    reply({ params: msg.params });
   } else if (msg.method?.startsWith("session/")) {
     const path = process.env.T3_AGY_MCP_STATE;
     let state = null, mode = null;
     try { state = JSON.parse(readFileSync(path, "utf8")); mode = statSync(path).mode & 0o777; } catch {}
     reply({ mcpServers: msg.params.mcpServers, state, mode });
   }
-}
+};
+process.stdin.on("data", (chunk) => {
+  buffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+  let idx;
+  while ((idx = buffer.indexOf("\\n")) !== -1) {
+    onLine(buffer.slice(0, idx));
+    buffer = buffer.slice(idx + 1);
+  }
+});
+process.stdin.on("end", () => {
+  buffer += decoder.decode();
+  if (buffer.length > 0) onLine(buffer);
+});
 `,
     "utf8",
   );
@@ -293,14 +373,47 @@ test("acp mode adds telemetry and lean agent flags, moves t3-code into a private
     expect(forked.result.mcpServers).toEqual([]);
     expect(forked.result.state.env.T3_ACP_MCP_AUTHORIZATION).toBe("Bearer tokB");
 
-    const http = { type: "http", name: "t3-code", url: "http://127.0.0.1:1/mcp", headers: [] };
+    const http = {
+      type: "http",
+      name: "t3-code",
+      url: "http://127.0.0.1:1/mcp",
+      headers: [
+        { name: "Authorization", value: "Bearer tokH" },
+        { name: "t3-tool-exposure", value: "deferred" },
+      ],
+    };
     const httpSession = await client.request({
       jsonrpc: "2.0",
       id: 4,
       method: "session/new",
-      params: { cwd: dir, mcpServers: [http] },
+      params: { cwd: dir, mcpServers: [http, other] },
     });
-    expect(httpSession.result.mcpServers).toEqual([http]);
+    expect(httpSession.result.mcpServers).toEqual([other]);
+    expect(httpSession.result.state).toEqual({
+      type: "http",
+      url: "http://127.0.0.1:1/mcp",
+      headers: {
+        Authorization: "Bearer tokH",
+        "t3-tool-exposure": "deferred",
+      },
+    });
+
+    const sse = { type: "sse", name: "t3-code", url: "http://127.0.0.1:1/sse", headers: [] };
+    const sseSession = await client.request({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "session/new",
+      params: { cwd: dir, mcpServers: [sse] },
+    });
+    expect(sseSession.result.mcpServers).toEqual([sse]);
+
+    const prompt = await client.request({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "session/prompt",
+      params: { text: "line\u2028sep\u2029para" },
+    });
+    expect(prompt.result.params).toEqual({ text: "line\u2028sep\u2029para" });
 
     expect(await client.close()).toBe(0);
     expect(existsSync(statePath)).toBe(false);
@@ -662,6 +775,19 @@ test("shim forwards directly over HTTP/SSE without spawning a bridge process and
         res.end("boom");
         return;
       }
+      if (mode === "empty204") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (mode === "truncatedSse") {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(
+          `data: ${JSON.stringify({ jsonrpc: "2.0", method: "notifications/progress", params: { step: 99 } })}\n\n`,
+        );
+        res.end();
+        return;
+      }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
@@ -671,7 +797,7 @@ test("shim forwards directly over HTTP/SSE without spawning a bridge process and
             content: [
               {
                 type: "text",
-                text: `${req.headers.authorization}:${req.headers["mcp-session-id"]}`,
+                text: `${req.headers.authorization}:${req.headers["mcp-session-id"]}${req.headers["x-custom"] ? `:${req.headers["x-custom"]}` : ""}`,
               },
             ],
           },
@@ -764,6 +890,44 @@ test("shim forwards directly over HTTP/SSE without spawning a bridge process and
     });
     expect(failed.error.code).toBe(-32603);
     expect(failed.error.message).toContain("HTTP 500");
+
+    // Empty 204 and truncated SSE clean up pending requests with an error and don't stall rotation.
+    const empty204 = await shim.request({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: { mode: "empty204" } },
+    });
+    expect(empty204.error.code).toBe(-32603);
+
+    const truncatedSse = await shim.request({
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: { mode: "truncatedSse" } },
+    });
+    expect(truncatedSse.error.code).toBe(-32603);
+
+    // Direct HTTP-type state (without command/env) works and forwards custom headers.
+    const directTmp = `${statePath}.tmp`;
+    await writeFile(
+      directTmp,
+      JSON.stringify({
+        type: "http",
+        url: endpoint,
+        headers: { Authorization: "Bearer tokD", "X-Custom": "from-http-spec" },
+      }),
+      { mode: 0o600 },
+    );
+    await rename(directTmp, statePath);
+    await until(() => readyHash(statePath) === specHash(statePath), "ready for tokD");
+    const directCall = await shim.request({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: {} },
+    });
+    expect(callText(directCall)).toBe("Bearer tokD:sess-4:from-http-spec");
 
     expect(await shim.close()).toBe(0);
     expect(existsSync(`${statePath}.shim`)).toBe(false);

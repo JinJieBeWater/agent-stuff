@@ -4,8 +4,8 @@
 // process, but a fork can bring a new thread token, so the spec is re-read before each request and
 // watched via fs.watch while idle, replaying the handshake when it changes.
 //
-// When T3_ACP_MCP_ENDPOINT is present in the spec env (all T3 ACP sessions), this shim forwards
-// JSON-RPC directly to T3's HTTP/SSE endpoint via fetch instead of spawning acp-mcp-bridge.
+// When spec.url or spec.env.T3_ACP_MCP_ENDPOINT is present (all T3 ACP sessions), this shim
+// forwards JSON-RPC directly to T3's HTTP/SSE endpoint via fetch instead of spawning acp-mcp-bridge.
 //
 // agy usually starts this server at ACP authenticate, before any spec exists, and fixes a session's
 // tools when the session is created. So the catalog starts empty, a new spec is announced with
@@ -116,9 +116,29 @@ function protocolVersionOf(entry) {
   return typeof version === "string" && version.length > 0 ? version : null;
 }
 
-function startHttpBridge({ key, spec }) {
-  const endpoint = spec.env.T3_ACP_MCP_ENDPOINT;
-  const authorization = spec.env.T3_ACP_MCP_AUTHORIZATION;
+function httpTarget(spec) {
+  if (typeof spec?.url === "string" && spec.url.length > 0) {
+    const headers = {};
+    if (spec.headers && typeof spec.headers === "object") {
+      for (const [name, value] of Object.entries(spec.headers)) {
+        if (typeof value === "string") headers[name.toLowerCase()] = value;
+      }
+    }
+    return { endpoint: spec.url, headers };
+  }
+  const endpoint = spec?.env?.T3_ACP_MCP_ENDPOINT;
+  if (typeof endpoint === "string" && endpoint.length > 0) {
+    const headers = {};
+    if (typeof spec.env.T3_ACP_MCP_AUTHORIZATION === "string") {
+      headers.authorization = spec.env.T3_ACP_MCP_AUTHORIZATION;
+    }
+    return { endpoint, headers };
+  }
+  return null;
+}
+
+function startHttpBridge({ key }, target) {
+  const { endpoint, headers: baseHeaders } = target;
   const controller = new AbortController();
   let sessionId = null;
   let protocolVersion = null;
@@ -138,141 +158,117 @@ function startHttpBridge({ key, spec }) {
   };
 
   async function postMessage(line, msg, isReplay = false) {
+    const failPending = (message) => {
+      if (isReplay || !isRequest(msg) || !b.pending.has(msg.id)) return;
+      if (!b.done && bridge === b) {
+        handleBridgeMessage(b, {
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: { code: -32603, message },
+        });
+      } else {
+        b.pending.delete(msg.id);
+        b.toolLists.delete(msg.id);
+      }
+    };
+
     const headers = {
+      ...baseHeaders,
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
     };
-    if (authorization) headers.authorization = authorization;
     if (sessionId !== null) headers["mcp-session-id"] = sessionId;
     if (protocolVersion !== null) headers["mcp-protocol-version"] = protocolVersion;
 
-    let response;
     try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: line,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (isReplay) return null;
-      if (!b.done && bridge === b && msg?.id !== undefined) {
-        handleBridgeMessage(b, {
-          jsonrpc: "2.0",
-          id: msg.id,
-          error: {
-            code: -32603,
-            message: `T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`,
-          },
-        });
-      }
-      return null;
-    }
-
-    sessionId = response.headers.get("mcp-session-id") ?? sessionId;
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => {});
-      const errMsg = `T3 Code MCP endpoint responded with HTTP ${response.status}.`;
-      if (isReplay) return { error: { code: -32603, message: errMsg } };
-      if (!b.done && bridge === b && msg?.id !== undefined) {
-        handleBridgeMessage(b, {
-          jsonrpc: "2.0",
-          id: msg.id,
-          error: { code: -32603, message: errMsg },
-        });
-      }
-      return null;
-    }
-
-    if (response.status === 202 || response.status === 204 || !response.body) {
-      await response.body?.cancel().catch(() => {});
-      return null;
-    }
-
-    const mediaType = (response.headers.get("content-type") ?? "")
-      .split(";", 1)[0]
-      .trim()
-      .toLowerCase();
-
-    if (mediaType === "text/event-stream") {
-      const reader = response.body.getReader();
+      let response;
       try {
-        for await (const data of sseDataLines(reader)) {
-          let payload;
-          try {
-            payload = JSON.parse(data);
-          } catch {
-            continue;
-          }
-          for (const entry of Array.isArray(payload) ? payload : [payload]) {
-            protocolVersion = protocolVersionOf(entry) ?? protocolVersion;
-            if (isReplay && entry?.id === REPLAY_ID && isResponse(entry)) {
-              return entry;
-            }
-            if (!isReplay) handleBridgeMessage(b, entry);
-          }
-        }
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: line,
+          signal: controller.signal,
+        });
       } catch (error) {
-        if (!isReplay && !b.done && bridge === b && msg?.id !== undefined) {
-          handleBridgeMessage(b, {
-            jsonrpc: "2.0",
-            id: msg.id,
-            error: {
-              code: -32603,
-              message: `T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`,
-            },
-          });
+        if (isReplay) return null;
+        failPending(`T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`);
+        return null;
+      }
+
+      sessionId = response.headers.get("mcp-session-id") ?? sessionId;
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {});
+        const errMsg = `T3 Code MCP endpoint responded with HTTP ${response.status}.`;
+        if (isReplay) return { error: { code: -32603, message: errMsg } };
+        failPending(errMsg);
+        return null;
+      }
+
+      if (response.status === 202 || response.status === 204 || !response.body) {
+        await response.body?.cancel().catch(() => {});
+        return null;
+      }
+
+      const mediaType = (response.headers.get("content-type") ?? "")
+        .split(";", 1)[0]
+        .trim()
+        .toLowerCase();
+
+      if (mediaType === "text/event-stream") {
+        const reader = response.body.getReader();
+        try {
+          for await (const data of sseDataLines(reader)) {
+            let payload;
+            try {
+              payload = JSON.parse(data);
+            } catch {
+              continue;
+            }
+            for (const entry of Array.isArray(payload) ? payload : [payload]) {
+              protocolVersion = protocolVersionOf(entry) ?? protocolVersion;
+              if (isReplay && entry?.id === REPLAY_ID && isResponse(entry)) {
+                return entry;
+              }
+              if (!isReplay) handleBridgeMessage(b, entry);
+            }
+          }
+        } catch (error) {
+          failPending(`T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`);
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
         }
-      } finally {
-        await reader.cancel().catch(() => {});
-        reader.releaseLock();
+        return null;
+      }
+
+      let text = "";
+      try {
+        text = await response.text();
+      } catch (error) {
+        failPending(`T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`);
+        return null;
+      }
+
+      if (!text.trim()) return null;
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (error) {
+        failPending(`T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`);
+        return null;
+      }
+
+      for (const entry of Array.isArray(payload) ? payload : [payload]) {
+        protocolVersion = protocolVersionOf(entry) ?? protocolVersion;
+        if (isReplay && entry?.id === REPLAY_ID && isResponse(entry)) {
+          return entry;
+        }
+        if (!isReplay) handleBridgeMessage(b, entry);
       }
       return null;
+    } finally {
+      failPending("T3 Code MCP endpoint returned no response.");
     }
-
-    let text = "";
-    try {
-      text = await response.text();
-    } catch (error) {
-      if (!isReplay && !b.done && bridge === b && msg?.id !== undefined) {
-        handleBridgeMessage(b, {
-          jsonrpc: "2.0",
-          id: msg.id,
-          error: {
-            code: -32603,
-            message: `T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`,
-          },
-        });
-      }
-      return null;
-    }
-
-    if (!text.trim()) return null;
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch (error) {
-      if (!isReplay && !b.done && bridge === b && msg?.id !== undefined) {
-        handleBridgeMessage(b, {
-          jsonrpc: "2.0",
-          id: msg.id,
-          error: {
-            code: -32603,
-            message: `T3 Code MCP bridge request failed: ${error?.message ?? String(error)}`,
-          },
-        });
-      }
-      return null;
-    }
-
-    for (const entry of Array.isArray(payload) ? payload : [payload]) {
-      protocolVersion = protocolVersionOf(entry) ?? protocolVersion;
-      if (isReplay && entry?.id === REPLAY_ID && isResponse(entry)) {
-        return entry;
-      }
-      if (!isReplay) handleBridgeMessage(b, entry);
-    }
-    return null;
   }
 
   function track(promise) {
@@ -388,10 +384,8 @@ function startStdioBridge({ key, spec }) {
 }
 
 function startBridge(state) {
-  const endpoint = state.spec?.env?.T3_ACP_MCP_ENDPOINT;
-  if (typeof endpoint === "string" && endpoint.length > 0) {
-    return startHttpBridge(state);
-  }
+  const target = httpTarget(state.spec);
+  if (target) return startHttpBridge(state, target);
   return startStdioBridge(state);
 }
 
