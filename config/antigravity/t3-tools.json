@@ -8,12 +8,6 @@
     "t3_thread_read",
     "t3_thread_list",
     "t3_thread_send",
-    "html_preview",
-    "html_render",
-    "preview_status",
-    "preview_open",
-    "preview_snapshot",
-    "request_secret",
     "send_to_user"
   ]
 }

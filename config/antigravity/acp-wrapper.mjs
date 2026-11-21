@@ -7,18 +7,17 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  watch,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createInterface } from "node:readline";
-import { setTimeout as sleep } from "node:timers/promises";
 
 const T3_SERVER_NAME = "t3-code";
 const DEFAULT_AGENT = "lean";
 const SESSION_METHODS = new Set(["session/new", "session/load", "session/resume", "session/fork"]);
 const SHIM_READY_MS = Number(process.env.T3_AGY_MCP_READY_MS ?? 10_000);
-const SHIM_SETTLE_MS = 100;
 const STATE_SUFFIXES = ["", ".tmp", ".shim", ".ready", ".ready.tmp"];
 
 function readSemver(binPath) {
@@ -104,26 +103,47 @@ function takeT3Server(mcpServers, statePath) {
 async function waitForShim(statePath, written) {
   if (!existsSync(`${statePath}.shim`)) return;
   const hash = createHash("sha256").update(written).digest("hex");
+  const readyPath = `${statePath}.ready`;
+  const readyName = basename(readyPath);
   const isReady = () => {
     try {
-      return readFileSync(`${statePath}.ready`, "utf8") === hash;
+      return readFileSync(readyPath, "utf8") === hash;
     } catch {
       return false;
     }
   };
   if (isReady()) return;
-  const deadline = Date.now() + SHIM_READY_MS;
-  while (!isReady()) {
-    if (Date.now() >= deadline) {
-      process.stderr.write(
-        "antigravity wrapper: t3-code shim not ready; session may lack T3 tools\n",
-      );
-      return;
+
+  await new Promise((resolve) => {
+    let settled = false;
+    let watcher = null;
+    let timer = null;
+    const finish = (timedOut) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      watcher?.close();
+      if (timedOut) {
+        process.stderr.write(
+          "antigravity wrapper: t3-code shim not ready; session may lack T3 tools\n",
+        );
+      }
+      resolve();
+    };
+    const check = () => {
+      if (isReady()) finish(false);
+    };
+    try {
+      watcher = watch(dirname(statePath), (_event, filename) => {
+        if (!filename || filename === readyName) check();
+      });
+      watcher.on("error", () => {});
+    } catch {
+      // Rely on the timeout if directory watching is unavailable.
     }
-    await sleep(25);
-  }
-  // The shim marks ready as it hands agy the catalog; give agy a moment to take it in.
-  await sleep(SHIM_SETTLE_MS);
+    timer = setTimeout(() => finish(true), SHIM_READY_MS);
+    check();
+  });
 }
 
 // A wrapper that dies without its exit handler leaves a live bearer token behind.

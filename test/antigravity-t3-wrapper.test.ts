@@ -2,10 +2,10 @@ import { expect, test } from "vite-plus/test";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -120,7 +120,10 @@ function lineClient(command: string, args: string[], env: NodeJS.ProcessEnv) {
   });
   const waiters = new Map<unknown, (msg: Json) => void>();
   const notifications: Json[] = [];
-  createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", (line) => {
+  const decoder = new TextDecoder();
+  let stdoutBuffer = "";
+  const onStdoutLine = (raw: string) => {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     if (!line.trim()) return;
     const msg = JSON.parse(line);
     if ("id" in msg && waiters.has(msg.id)) {
@@ -129,6 +132,18 @@ function lineClient(command: string, args: string[], env: NodeJS.ProcessEnv) {
     } else {
       notifications.push(msg);
     }
+  };
+  child.stdout.on("data", (chunk: Buffer | string) => {
+    stdoutBuffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+    let idx: number;
+    while ((idx = stdoutBuffer.indexOf("\n")) !== -1) {
+      onStdoutLine(stdoutBuffer.slice(0, idx));
+      stdoutBuffer = stdoutBuffer.slice(idx + 1);
+    }
+  });
+  child.stdout.on("end", () => {
+    stdoutBuffer += decoder.decode();
+    if (stdoutBuffer.length > 0) onStdoutLine(stdoutBuffer);
   });
   const exited = new Promise<number | null>((resolveExit) => child.on("close", resolveExit));
   return {
@@ -532,6 +547,228 @@ test("shim serves an empty catalog without state and switches to T3 once state a
 
     expect(await shim.close()).toBe(0);
   } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+const writeHttpState = async (path: string, endpoint: string, token: string) => {
+  const tmp = `${path}.tmp`;
+  await writeFile(
+    tmp,
+    JSON.stringify({
+      command: "/nonexistent/t3-bridge-must-not-spawn",
+      args: ["acp-mcp-bridge"],
+      env: {
+        T3_ACP_MCP_ENDPOINT: endpoint,
+        T3_ACP_MCP_AUTHORIZATION: `Bearer ${token}`,
+      },
+    }),
+    { mode: 0o600 },
+  );
+  await rename(tmp, path);
+};
+
+test("shim forwards directly over HTTP/SSE without spawning a bridge process and rotates tokens via fs.watch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "agy-shim-http-"));
+  const requests: Array<{ headers: Record<string, string | string[] | undefined>; body: Json }> =
+    [];
+  let releaseBlockedCall: (() => void) | null = null;
+  let sessionCounter = 0;
+
+  const server = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Json;
+    requests.push({ headers: req.headers, body });
+
+    if (body.method === "initialize") {
+      sessionCounter += 1;
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "mcp-session-id": `sess-${sessionCounter}`,
+      });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: {
+            protocolVersion: "2025-06-18",
+            capabilities: { tools: {} },
+            serverInfo: { name: "t3-code", version: "http" },
+          },
+        }),
+      );
+      return;
+    }
+
+    if (body.method === "notifications/initialized") {
+      res.writeHead(202);
+      res.end();
+      return;
+    }
+
+    if (body.method === "tools/list") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: { tools: [{ name: "delegate_task", inputSchema: { type: "object" } }] },
+        }),
+      );
+      return;
+    }
+
+    if (body.method === "tools/call") {
+      const mode = body.params?.arguments?.mode;
+      if (mode === "sse") {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(
+          `data: ${JSON.stringify({ jsonrpc: "2.0", method: "notifications/progress", params: { step: 1 } })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: `${req.headers.authorization}:${req.headers["mcp-session-id"]}:${body.params.arguments.text}`,
+                },
+              ],
+            },
+          })}\n\n`,
+        );
+        res.end();
+        return;
+      }
+      if (mode === "block") {
+        await new Promise<void>((resolve) => {
+          releaseBlockedCall = resolve;
+        });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { content: [{ type: "text", text: `unblocked:${req.headers.authorization}` }] },
+          }),
+        );
+        return;
+      }
+      if (mode === "fail") {
+        res.writeHead(500);
+        res.end("boom");
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: `${req.headers.authorization}:${req.headers["mcp-session-id"]}`,
+              },
+            ],
+          },
+        }),
+      );
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const addr = server.address();
+  const endpoint = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}/mcp`;
+
+  try {
+    const statePath = join(dir, "state.json");
+    await writeHttpState(statePath, endpoint, "tokA");
+    const shim = lineClient(shimPath, [], { ...process.env, T3_AGY_MCP_STATE: statePath });
+
+    const init = await shim.request({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
+    });
+    expect(init.result.serverInfo.version).toBe("http");
+    shim.write({ jsonrpc: "2.0", method: "notifications/initialized" });
+
+    const listed = await shim.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+    expect(listed.result.tools.map((t: Json) => t.name)).toEqual(["delegate_task"]);
+    expect(readyHash(statePath)).toBe(specHash(statePath));
+    expect(requests.at(-1)?.headers["mcp-session-id"]).toBe("sess-1");
+    expect(requests.at(-1)?.headers["mcp-protocol-version"]).toBe("2025-06-18");
+
+    // SSE response + U+2028/U+2029 preservation.
+    const sseCall = await shim.request({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: { mode: "sse", text: "a\u2028b\u2029c" } },
+    });
+    expect(callText(sseCall)).toBe("Bearer tokA:sess-1:a\u2028b\u2029c");
+    expect(shim.notifications).toEqual([
+      { jsonrpc: "2.0", method: "notifications/progress", params: { step: 1 } },
+    ]);
+
+    // Idle token rotation via fs.watch.
+    await writeHttpState(statePath, endpoint, "tokB");
+    await until(() => readyHash(statePath) === specHash(statePath), "ready for tokB");
+
+    // Concurrent calls + deferred state update while pending.
+    const blockedPromise = shim.request({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: { mode: "block" } },
+    });
+    await until(() => releaseBlockedCall !== null, "blocked call reached server");
+
+    // Second concurrent call resolves even while id=4 is blocked, and updates state mid-flight.
+    const fastCall = await shim.request({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: {} },
+    });
+    expect(callText(fastCall)).toBe("Bearer tokB:sess-2");
+
+    await writeHttpState(statePath, endpoint, "tokC");
+    // While id=4 is still pending, shim defers switching to tokC.
+    expect(readyHash(statePath)).not.toBe(specHash(statePath));
+    releaseBlockedCall!();
+    const blockedRes = await blockedPromise;
+    expect(callText(blockedRes)).toBe("unblocked:Bearer tokB");
+
+    // Once pending drains, deferred sync picks up tokC automatically.
+    await until(() => readyHash(statePath) === specHash(statePath), "ready for tokC");
+    const afterRotate = await shim.request({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: {} },
+    });
+    expect(callText(afterRotate)).toBe("Bearer tokC:sess-3");
+
+    // HTTP 500 produces a JSON-RPC error response.
+    const failed = await shim.request({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: { name: "delegate_task", arguments: { mode: "fail" } },
+    });
+    expect(failed.error.code).toBe(-32603);
+    expect(failed.error.message).toContain("HTTP 500");
+
+    expect(await shim.close()).toBe(0);
+    expect(existsSync(`${statePath}.shim`)).toBe(false);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   }
 });
